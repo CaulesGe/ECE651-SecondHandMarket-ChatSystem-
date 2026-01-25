@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secondhand Hub | Product Details</title>
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+  </head>
+  <body>
+    <header class="top-nav">
+      <a href="index.html" class="brand">
+        <div class="brand-icon">SH</div>
+        <div class="brand-text">
+          <h1>Secondhand Hub</h1>
+          <span>Buy & sell with confidence</span>
+        </div>
+      </a>
+      
+      <div class="search-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search for anything..." />
+        <button class="search-btn" id="searchBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      </div>
+      
+      <nav class="nav-links">
+        <span id="userBadge">Guest</span>
+        <a href="login.html" id="loginLink">Login</a>
+        <a href="register.html" id="registerLink">Register</a>
+        <a href="admin.html" id="adminLink" style="display: none;">Admin</a>
+        <button id="logoutBtn" style="display: none;">Logout</button>
+        <a href="index.html" class="cart-icon" id="cartIconBtn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+          <span class="cart-badge" id="navCartCount">0</span>
+        </a>
+      </nav>
+    </header>
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <a href="index.html">Home</a>
+      <span class="separator">/</span>
+      <a href="index.html" id="breadcrumbCategory">Category</a>
+      <span class="separator">/</span>
+      <span id="breadcrumbTitle">Product</span>
+    </nav>
+
+    <main class="product-page">
+      <!-- Product Details -->
+      <div class="product-container" id="productContainer">
+        <div class="product-loading">
+          <div class="skeleton" style="height: 400px; width: 100%;"></div>
+        </div>
+      </div>
+
+      <!-- Similar Items / Recommendations -->
+      <section class="recommendation-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+            </svg>
+            Customers Also Viewed
+          </h2>
+        </div>
+        <div class="horizontal-scroll" id="recommendationsGrid"></div>
+      </section>
+
+      <!-- Recently Viewed -->
+      <section class="recommendation-section" id="recentlyViewedSection" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            Your Browsing History
+          </h2>
+        </div>
+        <div class="horizontal-scroll" id="recentlyViewedGrid"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Built for ECE651-G11 &mdash; Sustainable selling made simple.</p>
+    </footer>
+
+    <script src="js/product.js"></script>
+  </body>
+</html>

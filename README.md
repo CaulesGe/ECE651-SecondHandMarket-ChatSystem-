@@ -1,55 +1,81 @@
 # ECE651-G11 - Secondhand Item Selling Web App
 
 ## Overview
-Secondhand Hub is a demo marketplace for buying and selling second-hand goods.
-It includes a layered architecture (frontend, backend, database), role-based
-access (admin, user, guest), authentication, a cart workflow, and a payment
-panel for checkout input.
+Secondhand Hub is a marketplace for buying and selling second-hand goods.
+Inspired by Amazon's UX patterns, it features:
+- **Search bar** with category filters
+- **Product detail pages** with full item info
+- **Recommendation system** based on browsing history and preferences
+- **Recently viewed** tracking
+- Role-based access (admin, user, guest)
+- Cart workflow with checkout
+- 40+ dummy products across 7 categories
 
 ## Project Structure
 ```
 ECE651-G11/
 ├── frontend/                # UI layer (HTML/CSS/JS)
-│   ├── index.html
+│   ├── index.html          # Home page with search, categories, recommendations
+│   ├── product.html        # Product detail page
 │   ├── login.html
 │   ├── register.html
 │   ├── admin.html
 │   ├── payment.html
 │   ├── css/
+│   │   └── styles.css
 │   └── js/
+│       ├── app.js          # Main app logic
+│       ├── product.js      # Product detail page
+│       ├── auth.js         # Login/register
+│       ├── admin.js        # Admin dashboard
+│       └── payment.js      # Checkout
 ├── backend/                 # API layer (Node + Express + Prisma)
 │   ├── server.js
-│   └── package.json
+│   ├── package.json
 │   └── prisma/
 │       └── schema.prisma
-└── database/                # Data layer (SQLite file)
-    └── secondhand.db
+├── database/                # Data layer (SQLite file)
+│   └── secondhand.db
+└── start.sh                 # One-command startup script
 ```
 
-## Roles & Access Rules
-- **Guest**: Can browse the goods list but cannot add to cart or checkout.
-- **User**: Can browse, add items to cart, publish listings, and checkout.
-- **Admin**: Can access the admin panel to view all users, goods, and
-  transactions.
+## Features
 
-## Authentication
-Authentication is handled through the backend API with a simple email/password
-lookup in SQLite. After login or registration, the frontend saves the session
-in `localStorage`.
+### Amazon-Inspired UX
+- **Search bar** in navigation with category dropdown
+- **Category pills** for quick filtering
+- **Product cards** with hover effects and quick-add to cart
+- **Product detail page** with image, seller info, and recommendations
+- **"Customers Also Viewed"** recommendations
+- **"Recently Viewed"** history tracking
+- **Hero banner** with marketplace stats
 
-Default admin account:
-- Email: `admin@secondhand.com`
-- Password: `admin123`
+### Product Categories
+- Electronics (MacBooks, headphones, cameras, TVs, etc.)
+- Furniture (desks, chairs, sofas, beds)
+- Clothing (jackets, shoes, athletic wear)
+- Sports (bikes, gym equipment, outdoor gear)
+- Books & Media (textbooks, vinyl records, manga)
+- Home & Kitchen (vacuums, appliances, cookware)
+- Music (guitars, pianos, drums, microphones)
 
-## Database Structure (Prisma + SQLite)
+### Roles & Access Rules
+- **Guest**: Can browse and search, but cannot add to cart or checkout
+- **User**: Full access to browse, cart, checkout, and list items for sale
+- **Admin**: Access to admin panel with all users, listings, and transactions
 
-The database schema is defined in `backend/prisma/schema.prisma` and stored
-in a SQLite file at `database/secondhand.db`.
+## How to Run
 
-## How to Run (Local Setup)
-
-### 1) Start the backend API
+### Quick Start (Recommended)
+```bash
+bash start.sh
 ```
+This installs dependencies, sets up the database, and starts both servers.
+
+### Manual Setup
+
+#### 1) Start the backend API
+```bash
 cd backend
 npm install
 npx prisma generate
@@ -58,46 +84,58 @@ npm start
 ```
 The API runs at `http://localhost:3000`.
 
-### 2) Start the frontend
-From the project root:
-```
+#### 2) Start the frontend
+```bash
 cd frontend
-python -m http.server 5500
+python3 -m http.server 5500
 ```
 Then open `http://localhost:5500/index.html` in your browser.
 
-### 3) View the database (Prisma Studio)
-Prisma includes a web UI for viewing data:
+### After Changing Database Schema
+```bash
+cd backend
+npx prisma generate
+npx prisma db push
 ```
+Then restart the backend.
+
+### View Database (Prisma Studio)
+```bash
 cd backend
 npx prisma studio
 ```
-Then open the URL shown in the terminal (usually `http://localhost:5555`).
+Opens a web UI at `http://localhost:5555`.
 
-### 4) View the database (SQLite CLI)
-The database file `database/secondhand.db` is created automatically when the
-backend starts. To view it from the terminal:
-```
-sqlite3 database/secondhand.db
-```
-Then inside the sqlite shell:
-```
-.tables
-SELECT * FROM users;
-SELECT * FROM goods;
-SELECT * FROM transactions;
-```
+## Default Accounts
+
+| Role  | Email                  | Password    |
+|-------|------------------------|-------------|
+| Admin | admin@secondhand.com   | admin123    |
+| User  | jordan@example.com     | password123 |
+
+## API Endpoints
+
+| Method | Endpoint                        | Description              |
+|--------|---------------------------------|--------------------------|
+| GET    | /api/goods                      | List all goods           |
+| GET    | /api/goods?search=X&category=Y  | Search and filter        |
+| GET    | /api/goods/:id                  | Get single product       |
+| GET    | /api/goods/:id/recommendations  | Get similar items        |
+| GET    | /api/categories                 | List all categories      |
+| POST   | /api/goods                      | Create listing (auth)    |
+| POST   | /api/auth/login                 | Login                    |
+| POST   | /api/auth/register              | Register                 |
+| GET    | /api/users                      | List users (admin)       |
+| GET    | /api/transactions               | List transactions (admin)|
+| POST   | /api/transactions/checkout      | Checkout (auth)          |
 
 ## Design & Layers
-- **Frontend layer**: Pure HTML/CSS/JS providing UI views, user interaction,
-  cart management, and client-side session storage.
-- **Backend layer**: Express API exposing authentication, goods listing,
-  checkout, and admin endpoints.
-- **Database layer**: Prisma schema managed by SQLite. Prisma Studio provides
-  a web UI for exploring data.
+- **Frontend layer**: Pure HTML/CSS/JS with modern UI, localStorage for cart and session
+- **Backend layer**: Express API with Prisma ORM
+- **Database layer**: SQLite managed by Prisma, auto-seeded with 40+ products
 
-## Suggested Team Workflow
-- Keep UI changes inside `frontend/`.
-- Keep API logic inside `backend/`.
-- If new fields are needed, update both the JSON schema in `database/` and the
-  UI forms that create or display those fields.
+## Tech Stack
+- Frontend: HTML5, CSS3, JavaScript (ES6+)
+- Backend: Node.js, Express
+- Database: SQLite + Prisma ORM
+- Styling: Custom CSS with Inter font, responsive design

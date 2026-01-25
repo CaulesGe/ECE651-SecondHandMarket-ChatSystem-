@@ -16,128 +16,211 @@
           <span>Buy & sell with confidence</span>
         </div>
       </a>
+      
+      <!-- Amazon-style Search Bar -->
+      <div class="search-bar">
+        <select id="categorySelect" class="search-category">
+          <option value="All">All Categories</option>
+        </select>
+        <input type="text" id="searchInput" class="search-input" placeholder="Search for anything..." />
+        <button class="search-btn" id="searchBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      </div>
+      
       <nav class="nav-links">
         <span id="userBadge">Guest</span>
         <a href="login.html" id="loginLink">Login</a>
         <a href="register.html" id="registerLink">Register</a>
         <a href="admin.html" id="adminLink" style="display: none;">Admin Panel</a>
         <button id="logoutBtn" style="display: none;">Logout</button>
+        <a href="#" class="cart-icon" id="cartIconBtn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+          </svg>
+          <span class="cart-badge" id="navCartCount">0</span>
+        </a>
       </nav>
     </header>
 
-    <section class="hero">
-      <div class="hero-card">
-        <h2>Discover quality pre-loved goods</h2>
-        <p>
-          Browse curated listings from your community. Add favorites to your cart 
-          and check out in minutes. Guests can explore; register to buy or sell.
-        </p>
-        <div class="hero-actions">
-          <button class="btn btn-ghost" id="browseBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            Browse Items
-          </button>
-          <a class="btn btn-ghost" href="register.html">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
-            Become a Seller
-          </a>
-        </div>
-      </div>
-      <div class="hero-card">
-        <h2>Marketplace Stats</h2>
-        <p>Real-time overview of our growing community.</p>
-        <div class="stats-grid">
-          <div class="stat-item">
-            <strong id="listingCount">0</strong>
-            <span>Listings</span>
+    <!-- Hero Banner -->
+    <section class="hero-banner">
+      <div class="hero-content">
+        <h1>Find Amazing Deals on Pre-Loved Items</h1>
+        <p>Thousands of quality second-hand products at great prices. Buy and sell with your local community.</p>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <strong id="totalListings">0</strong>
+            <span>Active Listings</span>
           </div>
-          <div class="stat-item">
-            <strong id="cartTotalTop">$0</strong>
-            <span>Cart Total</span>
+          <div class="hero-stat">
+            <strong id="totalCategories">0</strong>
+            <span>Categories</span>
+          </div>
+          <div class="hero-stat">
+            <strong>100%</strong>
+            <span>Secure</span>
           </div>
         </div>
       </div>
     </section>
 
-    <main class="main-grid">
-      <section>
-        <div class="hero-card" id="sellPanel" style="display: none; margin-bottom: 24px;">
-          <h2>List a New Item</h2>
-          <p>Share the details to get your item in front of buyers.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Title</label>
-              <input id="newTitle" placeholder="Vintage lamp, winter jacket..." />
-            </div>
-            <div class="form-group">
-              <label>Price (CAD)</label>
-              <input id="newPrice" type="number" min="1" placeholder="0.00" />
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Condition</label>
-              <select id="newCondition">
-                <option>Like New</option>
-                <option>Good</option>
-                <option>Fair</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Category</label>
-              <input id="newCategory" placeholder="Furniture, Electronics..." />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea id="newDescription" rows="3" placeholder="Describe your item..."></textarea>
-          </div>
-          <div class="form-group">
-            <label>Photo URL</label>
-            <input id="newImage" placeholder="https://..." />
-          </div>
-          <button class="btn btn-primary" id="listItemBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Publish Listing
-          </button>
-          <p class="notice" id="sellNotice" style="display: none;"></p>
-        </div>
+    <!-- Category Pills -->
+    <section class="category-section">
+      <div class="category-pills" id="categoryPills">
+        <button class="category-pill active" data-category="All">All Items</button>
+      </div>
+    </section>
 
-        <div class="section-header">
-          <h2 class="section-title">Featured Items</h2>
-        </div>
-        <div class="goods-grid" id="goodsGrid"></div>
-      </section>
+    <main class="main-container">
+      <div class="main-grid">
+        <section class="products-section">
+          <!-- Recently Viewed Section -->
+          <div class="recommendation-section" id="recentlyViewedSection" style="display: none;">
+            <div class="section-header">
+              <h2 class="section-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Recently Viewed
+              </h2>
+              <button class="clear-btn" id="clearRecentBtn">Clear</button>
+            </div>
+            <div class="horizontal-scroll" id="recentlyViewedGrid"></div>
+          </div>
 
-      <aside class="cart-panel">
-        <div class="cart-header">
-          <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-            Your Cart
-          </h3>
-          <span class="badge-count" id="cartCount">0</span>
-        </div>
-        <div class="cart-items" id="cartItems">
-          <div class="empty-cart">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-            <p>Your cart is empty</p>
+          <!-- Recommended For You -->
+          <div class="recommendation-section" id="recommendedSection">
+            <div class="section-header">
+              <h2 class="section-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                </svg>
+                Recommended For You
+              </h2>
+            </div>
+            <div class="horizontal-scroll" id="recommendedGrid"></div>
           </div>
-        </div>
-        <div class="cart-summary">
-          <div class="cart-total">
-            <span>Total</span>
-            <span id="cartTotal">$0.00</span>
+
+          <!-- Sell Panel -->
+          <div class="hero-card sell-panel" id="sellPanel" style="display: none;">
+            <h2>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              List a New Item
+            </h2>
+            <p>Share the details to get your item in front of buyers.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Title</label>
+                <input id="newTitle" placeholder="Vintage lamp, winter jacket..." />
+              </div>
+              <div class="form-group">
+                <label>Price (CAD)</label>
+                <input id="newPrice" type="number" min="1" placeholder="0.00" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Condition</label>
+                <select id="newCondition">
+                  <option>Like New</option>
+                  <option>Good</option>
+                  <option>Fair</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Category</label>
+                <select id="newCategory"></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="newDescription" rows="3" placeholder="Describe your item..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>Photo URL</label>
+              <input id="newImage" placeholder="https://..." />
+            </div>
+            <button class="btn btn-primary" id="listItemBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Publish Listing
+            </button>
+            <p class="notice" id="sellNotice" style="display: none;"></p>
           </div>
-          <button class="btn btn-primary" id="checkoutBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-            Proceed to Payment
-          </button>
-        </div>
-        <p class="notice" id="guestNotice" style="display: none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          Guests can browse, but must register to add items and checkout.
-        </p>
-      </aside>
+
+          <!-- All Products -->
+          <div class="section-header">
+            <h2 class="section-title" id="productsTitle">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <path d="M16 10a4 4 0 0 1-8 0"></path>
+              </svg>
+              All Products
+            </h2>
+            <span class="results-count" id="resultsCount">0 items</span>
+          </div>
+          <div class="goods-grid" id="goodsGrid"></div>
+        </section>
+
+        <!-- Sidebar Cart -->
+        <aside class="cart-panel">
+          <div class="cart-header">
+            <h3>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+              Your Cart
+            </h3>
+            <span class="badge-count" id="cartCount">0</span>
+          </div>
+          <div class="cart-items" id="cartItems">
+            <div class="empty-cart">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+              <p>Your cart is empty</p>
+            </div>
+          </div>
+          <div class="cart-summary">
+            <div class="cart-total">
+              <span>Total</span>
+              <span id="cartTotal">$0.00</span>
+            </div>
+            <button class="btn btn-primary" id="checkoutBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                <line x1="1" y1="10" x2="23" y2="10"></line>
+              </svg>
+              Proceed to Checkout
+            </button>
+          </div>
+          <p class="notice" id="guestNotice" style="display: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            Register to add items and checkout.
+          </p>
+        </aside>
+      </div>
     </main>
 
     <footer class="footer">
