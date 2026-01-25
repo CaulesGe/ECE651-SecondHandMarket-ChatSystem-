@@ -1,30 +1,110 @@
 import express from "express";
 import cors from "cors";
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dbDir = path.resolve(__dirname, "..", "database");
+import { PrismaClient } from "@prisma/client";
 
 const app = express();
 const PORT = 3000;
+const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const readJson = async (filename) => {
-  const data = await fs.readFile(path.join(dbDir, filename), "utf-8");
-  return JSON.parse(data);
-};
+const seedIfEmpty = async () => {
+  const userCount = await prisma.user.count();
+  const goodsCount = await prisma.goods.count();
 
-const writeJson = async (filename, payload) => {
-  await fs.writeFile(
-    path.join(dbDir, filename),
-    JSON.stringify(payload, null, 2),
-    "utf-8"
-  );
+  if (userCount === 0) {
+    await prisma.user.createMany({
+      data: [
+        {
+          id: "u_admin",
+          name: "Admin",
+          email: "admin@secondhand.com",
+          password: "admin123",
+          role: "admin",
+          createdAt: new Date("2026-01-01T09:00:00.000Z")
+        },
+        {
+          id: "u_1001",
+          name: "Jordan Lee",
+          email: "jordan@example.com",
+          password: "password123",
+          role: "user",
+          createdAt: new Date("2026-01-10T10:45:00.000Z")
+        }
+      ]
+    });
+  }
+
+  if (goodsCount === 0) {
+    await prisma.goods.createMany({
+      data: [
+        {
+          id: "g_1001",
+          title: "Vintage Walnut Desk",
+          description:
+            "Solid walnut desk with brass handles. Minor scratches, sturdy build.",
+          price: 180,
+          condition: "Good",
+          category: "Furniture",
+          images: JSON.stringify(["https://picsum.photos/seed/desk/600/400"]),
+          sellerName: "Jordan Lee",
+          location: "Waterloo, ON",
+          listedAt: new Date("2026-01-12T14:12:00.000Z")
+        },
+        {
+          id: "g_1002",
+          title: "Gaming Chair - Raven Series",
+          description:
+            "Ergonomic chair with adjustable lumbar support. Clean, like-new.",
+          price: 120,
+          condition: "Like New",
+          category: "Furniture",
+          images: JSON.stringify(["https://picsum.photos/seed/chair/600/400"]),
+          sellerName: "Avery Stone",
+          location: "Kitchener, ON",
+          listedAt: new Date("2026-01-15T09:30:00.000Z")
+        },
+        {
+          id: "g_1003",
+          title: "Mirrorless Camera Kit",
+          description: "Includes 24-70mm lens, battery, and bag. Lightly used.",
+          price: 540,
+          condition: "Good",
+          category: "Electronics",
+          images: JSON.stringify(["https://picsum.photos/seed/camera/600/400"]),
+          sellerName: "Sam Rivera",
+          location: "Cambridge, ON",
+          listedAt: new Date("2026-01-18T11:00:00.000Z")
+        },
+        {
+          id: "g_1004",
+          title: "Road Bike - 54cm",
+          description:
+            "Aluminum frame, recently tuned, includes lights and lock.",
+          price: 320,
+          condition: "Fair",
+          category: "Sports",
+          images: JSON.stringify(["https://picsum.photos/seed/bike/600/400"]),
+          sellerName: "Maya Patel",
+          location: "Waterloo, ON",
+          listedAt: new Date("2026-01-19T16:20:00.000Z")
+        },
+        {
+          id: "g_1005",
+          title: "Kitchen Starter Bundle",
+          description: "Pots, pans, and utensils. Clean and ready to use.",
+          price: 75,
+          condition: "Good",
+          category: "Home",
+          images: JSON.stringify(["https://picsum.photos/seed/kitchen/600/400"]),
+          sellerName: "Noah Kim",
+          location: "Waterloo, ON",
+          listedAt: new Date("2026-01-20T08:45:00.000Z")
+        }
+      ]
+    });
+  }
 };
 
 const requireRole = (allowedRoles = []) => (req, res, next) => {
@@ -44,20 +124,15 @@ app.post("/api/auth/login", async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password required." });
   }
-  const users = await readJson("users.json");
-  const user = users.find(
-    (item) => item.email === email && item.password === password
-  );
+  const user = await prisma.user.findFirst({
+    where: { email, password },
+    select: { id: true, name: true, email: true, role: true }
+  });
   if (!user) {
     return res.status(401).json({ message: "Invalid credentials." });
   }
   return res.json({
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    }
+    user
   });
 });
 
@@ -66,8 +141,8 @@ app.post("/api/auth/register", async (req, res) => {
   if (!name || !email || !password) {
     return res.status(400).json({ message: "All fields are required." });
   }
-  const users = await readJson("users.json");
-  const exists = users.some((item) => item.email === email);
+  const existing = await prisma.user.findUnique({ where: { email } });
+  const exists = Boolean(existing);
   if (exists) {
     return res.status(409).json({ message: "Email already registered." });
   }
@@ -79,8 +154,12 @@ app.post("/api/auth/register", async (req, res) => {
     role: "user",
     createdAt: new Date().toISOString()
   };
-  users.push(newUser);
-  await writeJson("users.json", users);
+  await prisma.user.create({
+    data: {
+      ...newUser,
+      createdAt: new Date(newUser.createdAt)
+    }
+  });
   return res.status(201).json({
     user: {
       id: newUser.id,
@@ -92,8 +171,14 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 app.get("/api/goods", async (_req, res) => {
-  const goods = await readJson("goods.json");
-  res.json({ items: goods });
+  const goods = await prisma.goods.findMany({
+    orderBy: { listedAt: "desc" }
+  });
+  const items = goods.map((item) => ({
+    ...item,
+    images: item.images ? JSON.parse(item.images) : []
+  }));
+  res.json({ items });
 });
 
 app.post(
@@ -113,7 +198,6 @@ app.post(
     if (!title || !price || !condition || !category) {
       return res.status(400).json({ message: "Missing required fields." });
     }
-    const goods = await readJson("goods.json");
     const sellerName = req.header("x-user-name") || "Community Seller";
     const newItem = {
       id: `g_${Date.now()}`,
@@ -127,19 +211,29 @@ app.post(
       location: location || "Waterloo, ON",
       listedAt: new Date().toISOString()
     };
-    goods.unshift(newItem);
-    await writeJson("goods.json", goods);
+    await prisma.goods.create({
+      data: {
+        ...newItem,
+        images: JSON.stringify(newItem.images),
+        listedAt: new Date(newItem.listedAt)
+      }
+    });
     return res.status(201).json({ item: newItem });
   }
 );
 
 app.get("/api/users", requireRole(["admin"]), async (_req, res) => {
-  const users = await readJson("users.json");
+  const users = await prisma.user.findMany({
+    select: { id: true, name: true, email: true, role: true, createdAt: true }
+  });
   res.json({ items: users });
 });
 
 app.get("/api/transactions", requireRole(["admin"]), async (_req, res) => {
-  const transactions = await readJson("transactions.json");
+  const transactions = await prisma.transaction.findMany({
+    select: { id: true, userId: true, total: true, status: true, createdAt: true },
+    orderBy: { createdAt: "desc" }
+  });
   res.json({ items: transactions });
 });
 
@@ -152,9 +246,7 @@ app.post(
       return res.status(400).json({ message: "Invalid checkout payload." });
     }
 
-    const goods = await readJson("goods.json");
-    const transactions = await readJson("transactions.json");
-
+    const goods = await prisma.goods.findMany();
     const enrichedItems = items
       .map((item) => {
         const found = goods.find((g) => g.id === item.id);
@@ -191,13 +283,35 @@ app.post(
       createdAt: new Date().toISOString()
     };
 
-    transactions.unshift(newTransaction);
-    await writeJson("transactions.json", transactions);
+    await prisma.transaction.create({
+      data: {
+        id: newTransaction.id,
+        userId: newTransaction.userId,
+        total: newTransaction.total,
+        status: newTransaction.status,
+        createdAt: new Date(newTransaction.createdAt),
+        last4: newTransaction.payment.last4,
+        items: {
+          create: enrichedItems.map((item) => ({
+            goodsId: item.id,
+            title: item.title,
+            price: item.price,
+            quantity: item.quantity
+          }))
+        }
+      }
+    });
 
     return res.status(201).json({ transaction: newTransaction });
   }
 );
 
-app.listen(PORT, () => {
-  console.log(`API server running at http://localhost:${PORT}`);
-});
+const start = async () => {
+  await prisma.$connect();
+  await seedIfEmpty();
+  app.listen(PORT, () => {
+    console.log(`API server running at http://localhost:${PORT}`);
+  });
+};
+
+start();

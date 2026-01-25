@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 set -e
 
+# 1) Basic start (run this script): bash start.sh
+# 2) After changing the database schema:
+#    cd backend
+#    npx prisma generate
+#    npx prisma db push
+#    Then restart this script or run: npm start
+
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "Starting backend..."
 cd "$ROOT_DIR/backend"
 npm install
+npx prisma generate
+npx prisma db push
 npm start &
 BACKEND_PID=$!
 
