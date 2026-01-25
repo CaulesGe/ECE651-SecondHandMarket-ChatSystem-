@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secondhand Hub | Home</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="top-nav">
+      <div class="brand">
+        <h1>Secondhand Hub</h1>
+        <span>Buy, sell, and reuse with confidence</span>
+      </div>
+      <nav class="nav-links">
+        <span id="userBadge">Guest</span>
+        <a href="login.html" id="loginLink">Login</a>
+        <a href="register.html" id="registerLink">Register</a>
+        <a href="admin.html" id="adminLink" style="display: none;">Admin Panel</a>
+        <button id="logoutBtn" style="display: none;">Logout</button>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-card">
+        <h2>Discover quality pre-loved goods</h2>
+        <p>
+          Browse curated listings, add favorites to your cart, and check out in
+          minutes. Guests can explore the catalog; register to buy or sell.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="browseBtn">Browse Items</button>
+          <a class="btn btn-secondary" href="register.html">Become a Seller</a>
+        </div>
+      </div>
+      <div class="hero-card">
+        <h2>Transparent, friendly marketplace</h2>
+        <p>
+          Every listing includes condition, seller info, and location. Admins
+          have access to full transaction oversight for trust and safety.
+        </p>
+        <div class="info-row">
+          <span>Live listings</span>
+          <strong id="listingCount">0</strong>
+        </div>
+        <div class="info-row">
+          <span>Cart total</span>
+          <strong id="cartTotalTop">$0</strong>
+        </div>
+      </div>
+    </section>
+
+    <main class="main-grid">
+      <section>
+        <div class="hero-card" id="sellPanel" style="display: none;">
+          <h2>List a new item</h2>
+          <p>Share the details to get your item in front of buyers.</p>
+          <div class="form-group">
+            <label>Title</label>
+            <input id="newTitle" placeholder="Vintage lamp, winter jacket..." />
+          </div>
+          <div class="form-group">
+            <label>Price (CAD)</label>
+            <input id="newPrice" type="number" min="1" />
+          </div>
+          <div class="form-group">
+            <label>Condition</label>
+            <select id="newCondition">
+              <option>Like New</option>
+              <option>Good</option>
+              <option>Fair</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <input id="newCategory" placeholder="Furniture, Electronics..." />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="newDescription" rows="3"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Photo URL</label>
+            <input id="newImage" placeholder="https://..." />
+          </div>
+          <button class="btn btn-primary" id="listItemBtn">Publish Listing</button>
+          <p class="notice" id="sellNotice" style="display: none;"></p>
+        </div>
+
+        <h2 style="padding: 8px 0 14px;">Featured Items</h2>
+        <div class="goods-grid" id="goodsGrid"></div>
+      </section>
+
+      <aside class="cart-panel">
+        <div class="cart-header">
+          <h3>Your Cart</h3>
+          <span class="badge" id="cartCount">0</span>
+        </div>
+        <div class="cart-items" id="cartItems"></div>
+        <div class="cart-total">
+          <span>Total</span>
+          <span id="cartTotal">$0</span>
+        </div>
+        <button class="btn btn-primary" id="checkoutBtn">
+          Proceed to Payment
+        </button>
+        <p class="notice" id="guestNotice" style="display: none;">
+          Guests can browse, but must register to add items and checkout.
+        </p>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      Built for ECE651-G11 - Sustainable selling made simple.
+    </footer>
+
+    <script src="js/app.js"></script>
+  </body>
+</html>

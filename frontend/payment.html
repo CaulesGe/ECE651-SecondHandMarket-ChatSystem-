@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secondhand Hub | Payment</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="top-nav">
+      <div class="brand">
+        <h1>Secure Checkout</h1>
+        <span>Enter payment details to complete your order</span>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html">Back to Home</a>
+      </nav>
+    </header>
+
+    <section class="form-container">
+      <h2>Payment Panel</h2>
+      <p class="notice" id="paymentNotice" style="display: none;"></p>
+      <div class="form-group">
+        <label>Name on card</label>
+        <input id="cardName" type="text" placeholder="Jordan Lee" />
+      </div>
+      <div class="form-group">
+        <label>Card number</label>
+        <input id="cardNumber" type="text" placeholder="4111 1111 1111 1111" />
+      </div>
+      <div class="form-group">
+        <label>Expiry date</label>
+        <input id="cardExpiry" type="text" placeholder="MM/YY" />
+      </div>
+      <div class="form-group">
+        <label>CVV</label>
+        <input id="cardCvv" type="password" placeholder="123" />
+      </div>
+      <div class="form-group">
+        <label>Billing address</label>
+        <input id="billingAddress" type="text" placeholder="123 King St W" />
+      </div>
+      <div class="form-group">
+        <label>Postal code</label>
+        <input id="billingPostal" type="text" placeholder="N2L 3G1" />
+      </div>
+      <button class="btn btn-primary" id="payBtn">Place order</button>
+    </section>
+
+    <script src="js/payment.js"></script>
+  </body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secondhand Hub | Admin</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="top-nav">
+      <div class="brand">
+        <h1>Admin Console</h1>
+        <span>Full visibility into listings and activity</span>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html">Home</a>
+        <button id="logoutBtn">Logout</button>
+      </nav>
+    </header>
+
+    <section class="admin-grid">
+      <div class="admin-card">
+        <h2>Admin Overview</h2>
+        <p class="notice" id="adminNotice">
+          Admin access required. Please login as an admin user.
+        </p>
+        <div id="adminStats" style="display: none;">
+          <div class="info-row">
+            <span>Users</span>
+            <strong id="userCount">0</strong>
+          </div>
+          <div class="info-row">
+            <span>Listings</span>
+            <strong id="goodsCount">0</strong>
+          </div>
+          <div class="info-row">
+            <span>Transactions</span>
+            <strong id="transactionCount">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <h3>Users</h3>
+        <table class="table" id="usersTable"></table>
+      </div>
+
+      <div class="admin-card">
+        <h3>Listings</h3>
+        <table class="table" id="goodsTable"></table>
+      </div>
+
+      <div class="admin-card">
+        <h3>Transactions</h3>
+        <table class="table" id="transactionsTable"></table>
+      </div>
+    </section>
+
+    <script src="js/admin.js"></script>
+  </body>
+</html>

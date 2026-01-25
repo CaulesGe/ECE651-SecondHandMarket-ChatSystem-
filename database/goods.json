@@ -1,0 +1,72 @@
+[
+  {
+    "id": "g_1001",
+    "title": "Vintage Walnut Desk",
+    "description": "Solid walnut desk with brass handles. Minor scratches, sturdy build.",
+    "price": 180,
+    "condition": "Good",
+    "category": "Furniture",
+    "images": [
+      "https://picsum.photos/seed/desk/600/400"
+    ],
+    "sellerName": "Jordan Lee",
+    "location": "Waterloo, ON",
+    "listedAt": "2026-01-12T14:12:00.000Z"
+  },
+  {
+    "id": "g_1002",
+    "title": "Gaming Chair - Raven Series",
+    "description": "Ergonomic chair with adjustable lumbar support. Clean, like-new.",
+    "price": 120,
+    "condition": "Like New",
+    "category": "Furniture",
+    "images": [
+      "https://picsum.photos/seed/chair/600/400"
+    ],
+    "sellerName": "Avery Stone",
+    "location": "Kitchener, ON",
+    "listedAt": "2026-01-15T09:30:00.000Z"
+  },
+  {
+    "id": "g_1003",
+    "title": "Mirrorless Camera Kit",
+    "description": "Includes 24-70mm lens, battery, and bag. Lightly used.",
+    "price": 540,
+    "condition": "Good",
+    "category": "Electronics",
+    "images": [
+      "https://picsum.photos/seed/camera/600/400"
+    ],
+    "sellerName": "Sam Rivera",
+    "location": "Cambridge, ON",
+    "listedAt": "2026-01-18T11:00:00.000Z"
+  },
+  {
+    "id": "g_1004",
+    "title": "Road Bike - 54cm",
+    "description": "Aluminum frame, recently tuned, includes lights and lock.",
+    "price": 320,
+    "condition": "Fair",
+    "category": "Sports",
+    "images": [
+      "https://picsum.photos/seed/bike/600/400"
+    ],
+    "sellerName": "Maya Patel",
+    "location": "Waterloo, ON",
+    "listedAt": "2026-01-19T16:20:00.000Z"
+  },
+  {
+    "id": "g_1005",
+    "title": "Kitchen Starter Bundle",
+    "description": "Pots, pans, and utensils. Clean and ready to use.",
+    "price": 75,
+    "condition": "Good",
+    "category": "Home",
+    "images": [
+      "https://picsum.photos/seed/kitchen/600/400"
+    ],
+    "sellerName": "Noah Kim",
+    "location": "Waterloo, ON",
+    "listedAt": "2026-01-20T08:45:00.000Z"
+  }
+]
