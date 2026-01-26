@@ -18,17 +18,19 @@ npx prisma db push
 npm start &
 BACKEND_PID=$!
 
-echo "Starting frontend..."
-cd "$ROOT_DIR/frontend"
-python3 -m http.server 5500 &
-FRONTEND_PID=$!
+echo "Starting React client..."
+cd "$ROOT_DIR/client"
+npm install
+npm run dev &
+CLIENT_PID=$!
 
 echo ""
-echo "Backend PID: $BACKEND_PID"
-echo "Frontend PID: $FRONTEND_PID"
-echo "Open: http://localhost:5500/index.html"
+echo "Backend PID: $BACKEND_PID (http://localhost:3000)"
+echo "Client PID: $CLIENT_PID (http://localhost:5173)"
+echo ""
+echo "Open: http://localhost:5173"
 echo ""
 echo "Press Ctrl+C to stop both."
 
-trap "kill $BACKEND_PID $FRONTEND_PID" INT
+trap "kill $BACKEND_PID $CLIENT_PID" INT
 wait

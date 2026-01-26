@@ -14,21 +14,31 @@ Inspired by Amazon's UX patterns, it features:
 ## Project Structure
 ```
 ECE651-G11/
-├── frontend/                # UI layer (HTML/CSS/JS)
-│   ├── index.html          # Home page with search, categories, recommendations
-│   ├── product.html        # Product detail page
-│   ├── login.html
-│   ├── register.html
-│   ├── admin.html
-│   ├── payment.html
-│   ├── css/
-│   │   └── styles.css
-│   └── js/
-│       ├── app.js          # Main app logic
-│       ├── product.js      # Product detail page
-│       ├── auth.js         # Login/register
-│       ├── admin.js        # Admin dashboard
-│       └── payment.js      # Checkout
+├── client/                  # React Frontend (Vite)
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   │   ├── Header.jsx
+│   │   │   ├── Footer.jsx
+│   │   │   ├── ProductCard.jsx
+│   │   │   └── CartPanel.jsx
+│   │   ├── context/        # React Context providers
+│   │   │   ├── AuthContext.jsx
+│   │   │   └── CartContext.jsx
+│   │   ├── pages/          # Page components
+│   │   │   ├── HomePage.jsx
+│   │   │   ├── LoginPage.jsx
+│   │   │   ├── RegisterPage.jsx
+│   │   │   ├── ProductPage.jsx
+│   │   │   ├── PaymentPage.jsx
+│   │   │   ├── AdminPage.jsx
+│   │   │   └── ProfilePage.jsx
+│   │   ├── utils/
+│   │   │   └── api.js      # API helper functions
+│   │   ├── App.jsx         # Main app with routing
+│   │   ├── main.jsx        # Entry point
+│   │   └── index.css       # Global styles
+│   ├── package.json
+│   └── vite.config.js
 ├── backend/                 # API layer (Node + Express + Prisma)
 │   ├── server.js
 │   ├── package.json
@@ -36,6 +46,7 @@ ECE651-G11/
 │       └── schema.prisma
 ├── database/                # Data layer (SQLite file)
 │   └── secondhand.db
+├── frontend/                # Legacy HTML frontend (deprecated)
 └── start.sh                 # One-command startup script
 ```
 
@@ -84,12 +95,13 @@ npm start
 ```
 The API runs at `http://localhost:3000`.
 
-#### 2) Start the frontend
+#### 2) Start the React frontend
 ```bash
-cd frontend
-python3 -m http.server 5500
+cd client
+npm install
+npm run dev
 ```
-Then open `http://localhost:5500/index.html` in your browser.
+Then open `http://localhost:5173` in your browser.
 
 ### After Changing Database Schema
 ```bash
@@ -105,6 +117,13 @@ cd backend
 npx prisma studio
 ```
 Opens a web UI at `http://localhost:5555`.
+
+### Build for Production
+```bash
+cd client
+npm run build
+```
+The built files will be in `client/dist/`.
 
 ## Default Accounts
 
@@ -130,12 +149,12 @@ Opens a web UI at `http://localhost:5555`.
 | POST   | /api/transactions/checkout      | Checkout (auth)          |
 
 ## Design & Layers
-- **Frontend layer**: Pure HTML/CSS/JS with modern UI, localStorage for cart and session
+- **Frontend layer**: React with Vite, React Router for navigation, Context API for state management
 - **Backend layer**: Express API with Prisma ORM
 - **Database layer**: SQLite managed by Prisma, auto-seeded with 40+ products
 
 ## Tech Stack
-- Frontend: HTML5, CSS3, JavaScript (ES6+)
+- Frontend: React 19, React Router 7, Vite
 - Backend: Node.js, Express
 - Database: SQLite + Prisma ORM
 - Styling: Custom CSS with Inter font, responsive design
