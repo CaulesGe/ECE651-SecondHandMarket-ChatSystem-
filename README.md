@@ -23,9 +23,11 @@ ECE651-G11/
 │   │   │   └── CartPanel.jsx
 │   │   ├── context/        # React Context providers
 │   │   │   ├── AuthContext.jsx
-│   │   │   └── CartContext.jsx
+│   │   │   ├── CartContext.jsx
+│   │   │   └── ChatContext.jsx
 │   │   ├── pages/          # Page components
 │   │   │   ├── HomePage.jsx
+│   │   │   ├── ChatPage.jsx
 │   │   │   ├── LoginPage.jsx
 │   │   │   ├── RegisterPage.jsx
 │   │   │   ├── ProductPage.jsx
@@ -60,6 +62,13 @@ ECE651-G11/
 - **"Customers Also Viewed"** recommendations
 - **"Recently Viewed"** history tracking
 - **Hero banner** with marketplace stats
+- **Chat/messages page** with a modern two-column layout (thread list + conversation)
+
+### Chat UI (Frontend)
+- **Two-column layout**: thread list on the left, active conversation on the right
+- **Message composer**: input + send button at the bottom of the conversation panel
+- **Auto-scroll**: scrolls to the newest message when switching threads / after sending
+- **UUID message IDs**: new messages use UUID v4 (`crypto.randomUUID()` with a `getRandomValues()` fallback)
 
 ### Product Categories
 - Electronics (MacBooks, headphones, cameras, TVs, etc.)
