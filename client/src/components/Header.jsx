@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useChat } from '../context/ChatContext';
 
 export default function Header({ showSearch = true, subtitle = 'Buy & sell with confidence' }) {
   const { user, logout, isLoggedIn, isAdmin } = useAuth();
   const { cartCount } = useCart();
+  const { chatCount } = useChat();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState('All');
@@ -88,6 +90,12 @@ export default function Header({ showSearch = true, subtitle = 'Buy & sell with 
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
           </svg>
           <span className="cart-badge">{cartCount}</span>
+        </Link>
+        <Link to="/chat" className="chat-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          {chatCount > 0 && <span className="chat-badge">{chatCount}</span>}
         </Link>
       </nav>
     </header>
