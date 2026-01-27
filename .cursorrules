@@ -1,0 +1,318 @@
+# Front-End Design Skill for Secondhand Hub
+
+## Design System Overview
+
+This project uses a modern, Amazon-inspired design system with a clean, professional aesthetic. All front-end work should follow these guidelines.
+
+### Color Palette
+
+**Primary Colors:**
+- `--primary: #6366f1` (Indigo) - Main brand color
+- `--primary-dark: #4f46e5` - Hover states, active states
+- `--primary-light: #a5b4fc` - Light accents
+
+**Semantic Colors:**
+- `--accent: #10b981` (Green) - Success states, positive actions
+- `--accent-light: #d1fae5` - Light success backgrounds
+- `--warning: #f59e0b` (Amber) - Warning states
+- `--warning-light: #fef3c7` - Light warning backgrounds
+- `--danger: #ef4444` (Red) - Error states, delete actions, badges
+- `--danger-light: #fee2e2` - Light error backgrounds
+
+**Neutral Colors:**
+- `--bg: #f8fafc` - Main background
+- `--bg-card: #ffffff` - Card/component backgrounds
+- `--bg-hover: #f1f5f9` - Hover states
+- `--text: #0f172a` - Primary text
+- `--text-secondary: #64748b` - Secondary text
+- `--text-muted: #94a3b8` - Muted/disabled text
+- `--border: #e2e8f0` - Borders, dividers
+- `--border-focus: #6366f1` - Focus states
+
+**Always use CSS variables** - Never hardcode colors. Use `var(--primary)` instead of `#6366f1`.
+
+### Typography
+
+- **Font Family:** Inter (Google Fonts) with system fallbacks
+- **Font Weights:** 400 (regular), 500 (medium), 600 (semibold), 700 (bold), 800 (extrabold)
+- **Line Height:** 1.6 for body text
+- **Font Smoothing:** Always use `-webkit-font-smoothing: antialiased`
+
+### Spacing & Layout
+
+**Border Radius:**
+- `--radius-sm: 8px` - Small elements (badges, small buttons)
+- `--radius: 12px` - Standard elements (cards, inputs)
+- `--radius-lg: 16px` - Large elements
+- `--radius-xl: 24px` - Extra large elements
+
+**Shadows:**
+- `--shadow-sm` - Subtle elevation
+- `--shadow` - Standard elevation (cards)
+- `--shadow-lg` - Prominent elevation
+- `--shadow-xl` - Maximum elevation
+
+**Transitions:**
+- `--transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1)` - Standard transitions
+
+### Component Patterns
+
+#### Buttons
+
+**Standard Button Classes:**
+- `.btn` - Base button class
+- `.btn-primary` - Primary action (uses --primary)
+- `.btn-secondary` - Secondary action
+- `.btn-sm` - Small button variant
+- `.btn-lg` - Large button variant
+
+**Button Guidelines:**
+- Always include hover states
+- Use transitions for smooth interactions
+- Include disabled states with reduced opacity
+- Use SVG icons inline (22px width/height for standard, 14px for small buttons)
+- Icons should use `stroke="currentColor"` and `strokeWidth="2"`
+
+#### Cards
+
+**Card Structure:**
+```jsx
+<div className="card">
+  <div className="card-image">...</div>
+  <div className="card-body">...</div>
+  <div className="card-footer">...</div>
+</div>
+```
+
+**Card Guidelines:**
+- Use `background: var(--bg-card)`
+- Apply `border-radius: var(--radius)`
+- Include `box-shadow: var(--shadow)`
+- Add hover effects: `transform: translateY(-2px)` with `box-shadow: var(--shadow-lg)`
+- Use `cursor: pointer` for clickable cards
+
+#### Badges
+
+**Badge Classes:**
+- `.badge` - Base badge
+- `.badge-primary` - Primary badge (blue)
+- `.badge-success` - Success badge (green) - for "Like New" condition
+- `.badge-warning` - Warning badge (amber) - for "Fair" condition
+
+**Notification Badges:**
+- Use `.cart-badge` or `.chat-badge` for notification counts
+- Position: `absolute` with `top: 0; right: 0`
+- Background: `var(--danger)` (red)
+- Size: `min-width: 18px; height: 18px`
+- Font: `10px; font-weight: 700`
+- Border radius: `999px` (pill shape)
+- Only show when count > 0
+
+#### Icons
+
+**Icon Guidelines:**
+- Use inline SVG (not icon fonts or image files)
+- Standard size: `width="22" height="22"` for navigation/icons
+- Small size: `width="14" height="14"` for buttons
+- Always include: `fill="none" stroke="currentColor" strokeWidth="2"`
+- Use `strokeLinecap="round" strokeLinejoin="round"` for rounded strokes
+- Icons should be semantic and accessible
+
+**Common Icons:**
+- Shopping cart: Two circles at bottom, path for cart body
+- Chat bubble: Rounded rectangle with tail
+- Search: Circle with line
+- Location: Circle with dot
+- Checkmark: Polyline
+
+#### Navigation
+
+**Header Structure:**
+- Dark gradient background: `linear-gradient(135deg, #1e293b 0%, #334155 100%)`
+- Sticky positioning: `position: sticky; top: 0; z-index: 100`
+- Flexbox layout with proper spacing
+- Brand icon: `40px × 40px` with gradient background
+
+**Icon Buttons in Nav:**
+- Use `.cart-icon` or `.chat-icon` class
+- `position: relative` for badge positioning
+- `padding: 8px` for touch targets
+- Badge positioned absolutely within
+
+### CSS Best Practices
+
+1. **Use CSS Variables:** Always reference design tokens via `var(--variable-name)`
+2. **Mobile-First:** Write base styles for mobile, then add `@media` queries for larger screens
+3. **BEM-like Naming:** Use descriptive class names (`.card-body`, `.cart-badge`)
+4. **Consistent Spacing:** Use multiples of 4px or 8px
+5. **Hover States:** Always include hover effects for interactive elements
+6. **Focus States:** Include visible focus indicators for accessibility
+7. **Transitions:** Use `var(--transition)` for smooth animations
+
+### React Component Guidelines
+
+#### Component Structure
+
+```jsx
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+
+export default function ComponentName({ prop1, prop2 = defaultValue }) {
+  // Hooks
+  const { user, isLoggedIn } = useAuth();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
+  const [state, setState] = useState(initialValue);
+
+  // Handlers
+  const handleAction = (e) => {
+    e.preventDefault();
+    // Logic
+  };
+
+  // Render
+  return (
+    <div className="component-class">
+      {/* JSX */}
+    </div>
+  );
+}
+```
+
+#### Context Usage
+
+- Use `useAuth()` for authentication state
+- Use `useCart()` for cart operations
+- Use `useChat()` for chat functionality
+- Always check if context exists (handled by custom hooks)
+
+#### Event Handling
+
+- Use `e.preventDefault()` for form submissions
+- Use `e.stopPropagation()` to prevent event bubbling when needed
+- Use `e.target.closest('.class')` to check if click originated from specific element
+
+#### State Management
+
+- Use `useState` for local component state
+- Use Context API for global state (auth, cart, chat)
+- Use `localStorage` for persistence (handled in contexts)
+
+### Responsive Design
+
+**Breakpoints:**
+- Mobile: < 768px
+- Tablet: 768px - 1024px
+- Desktop: > 1024px
+
+**Responsive Patterns:**
+- Use flexbox with `flex-wrap` for card grids
+- Use CSS Grid for complex layouts
+- Hide/show elements with `display: none` at different breakpoints
+- Adjust font sizes: smaller on mobile, larger on desktop
+- Stack navigation vertically on mobile if needed
+
+### Accessibility
+
+1. **Semantic HTML:** Use proper HTML elements (`<button>`, `<nav>`, `<header>`)
+2. **ARIA Labels:** Add `aria-label` for icon-only buttons
+3. **Keyboard Navigation:** Ensure all interactive elements are keyboard accessible
+4. **Focus Indicators:** Visible focus states (use `:focus-visible`)
+5. **Alt Text:** Always include `alt` attributes for images
+6. **Color Contrast:** Ensure sufficient contrast (WCAG AA minimum)
+7. **Disabled States:** Show disabled state clearly (opacity, cursor)
+
+### Form Design
+
+**Input Styling:**
+- Use consistent padding: `12px 16px`
+- Border: `1px solid var(--border)`
+- Border radius: `var(--radius)`
+- Focus: `border-color: var(--border-focus)` with `box-shadow`
+- Placeholder: `color: var(--text-muted)`
+
+**Select Dropdowns:**
+- Match input styling
+- Include proper padding for options
+- Use consistent hover states
+
+**Form Validation:**
+- Show errors in red (`var(--danger)`)
+- Use `badge` or `alert` components for error messages
+- Provide clear feedback
+
+### Animation & Feedback
+
+**Loading States:**
+- Show loading spinners for async operations
+- Use skeleton screens for content loading
+
+**Success Feedback:**
+- Show temporary success messages (1.5-2 seconds)
+- Use checkmark icons
+- Green color (`var(--accent)`)
+
+**Error Feedback:**
+- Show error messages clearly
+- Use red color (`var(--danger)`)
+- Provide actionable error messages
+
+**Hover Effects:**
+- Cards: `transform: translateY(-2px)` with shadow increase
+- Buttons: Background color change
+- Links: Color change
+- Always use `transition: var(--transition)`
+
+### Code Quality Standards
+
+1. **Consistency:** Follow existing patterns in the codebase
+2. **DRY:** Don't repeat yourself - extract common patterns
+3. **Readability:** Use descriptive variable and function names
+4. **Comments:** Add comments for complex logic
+5. **Performance:** Use `loading="lazy"` for images below fold
+6. **SEO:** Use semantic HTML and proper heading hierarchy
+
+### Common Patterns
+
+#### Product Cards
+- Image at top with lazy loading
+- Badges for category and condition
+- Title and description
+- Location with icon
+- Price prominently displayed
+- Add to cart button (disabled for guests)
+
+#### Navigation Icons
+- SVG icons with `currentColor`
+- Badge overlay for counts
+- Conditional rendering (only show badge if count > 0)
+- Proper spacing and padding
+
+#### Search Bar
+- Category dropdown + text input + search button
+- Form submission handling
+- URL parameter management
+- Responsive layout
+
+### When Creating New Components
+
+1. Check existing components for similar patterns
+2. Use established CSS classes and variables
+3. Follow the component structure pattern
+4. Include proper TypeScript/PropTypes if applicable
+5. Add hover and focus states
+6. Test on mobile and desktop
+7. Ensure accessibility compliance
+8. Match the existing design aesthetic
+
+### Design Philosophy
+
+- **Clean & Modern:** Minimal, uncluttered interfaces
+- **Amazon-Inspired:** Familiar e-commerce patterns
+- **Professional:** Polished, production-ready appearance
+- **Accessible:** Usable by everyone
+- **Responsive:** Works on all devices
+- **Performant:** Fast loading and smooth interactions
+
