@@ -1,13 +1,22 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+
+// Serve static files from the client build directory in production
+const clientDistPath = path.join(__dirname, "../client/dist");
+app.use(express.static(clientDistPath));
 
 // Expanded dummy data with many more products
 const seedIfEmpty = async () => {
@@ -345,11 +354,16 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
   });
 });
 
+// Catch-all route: serve React app for any non-API routes (client-side routing)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(clientDistPath, "index.html"));
+});
+
 const start = async () => {
   await prisma.$connect();
   await seedIfEmpty();
-  app.listen(PORT, () => {
-    console.log(`API server running at http://localhost:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running at http://localhost:${PORT}`);
   });
 };
 

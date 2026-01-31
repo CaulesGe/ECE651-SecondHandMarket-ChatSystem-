@@ -48,7 +48,9 @@ ECE651-G11/
 │       └── schema.prisma
 ├── database/                # Data layer (SQLite file)
 │   └── secondhand.db
-├── frontend/                # Legacy HTML frontend (deprecated)
+├── Dockerfile               # Docker build configuration
+├── docker-compose.yml       # Docker Compose configuration
+├── .dockerignore            # Files excluded from Docker build
 └── start.sh                 # One-command startup script
 ```
 
@@ -91,6 +93,36 @@ ECE651-G11/
 bash start.sh
 ```
 This installs dependencies, sets up the database, and starts both servers.
+- Backend API: `http://localhost:3000`
+- Frontend: `http://localhost:5173`
+
+### Docker (Production Build)
+Run the entire app in a single Docker container on port 3000:
+```bash
+bash start.sh --docker
+# or
+bash start.sh -d
+```
+
+Or run Docker commands manually:
+```bash
+# Build the image
+docker build -t secondhand-hub .
+
+# Run the container
+docker run -p 3000:3000 secondhand-hub
+
+# Run with persistent database volume
+docker run -p 3000:3000 -v secondhand-data:/app/database secondhand-hub
+```
+Then open `http://localhost:3000` in your browser.
+
+To stop the container:
+```bash
+# If running in foreground: Ctrl+C
+# If running in background:
+docker stop $(docker ps -q --filter ancestor=secondhand-hub)
+```
 
 ### Manual Setup
 
@@ -163,7 +195,8 @@ The built files will be in `client/dist/`.
 - **Database layer**: SQLite managed by Prisma, auto-seeded with 40+ products
 
 ## Tech Stack
-- Frontend: React 19, React Router 7, Vite
+- Frontend: React 18, React Router 6, Vite
 - Backend: Node.js, Express
 - Database: SQLite + Prisma ORM
 - Styling: Custom CSS with Inter font, responsive design
+- Containerization: Docker (multi-stage build)

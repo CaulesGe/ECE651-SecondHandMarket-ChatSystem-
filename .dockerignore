@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+client/node_modules/
+backend/node_modules/
+
+# Build outputs (will be created during build)
+client/dist/
+
+# Database files (will be created at runtime)
+database/
+*.db
+*.db-journal
+
+# Git
+.git
+.gitignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+coverage/
+*.test.js
+*.spec.js
+
+# Documentation (optional to include)
+*.md
+!README.md
+
+# Cursor files
+.cursorrules
+
+# Misc
+start.sh
