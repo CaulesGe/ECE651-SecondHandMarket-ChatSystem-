@@ -31,14 +31,17 @@ export default function RegisterPage() {
     
     try {
       const data = await api.register(name, email, password);
-      login(data.user);
-      setNotice({ show: true, message: 'Account created! Redirecting...', isError: false });
-      
+      setNotice({
+        show: true,
+        message: data.message || "Account created. Please check your email to verify.",
+        isError: false
+      });
+
       setTimeout(() => {
-        navigate('/');
-      }, 500);
+        navigate("/login");
+      }, 800);
     } catch (error) {
-      setNotice({ show: true, message: error.message || 'Unable to register. Try a different email.', isError: true });
+      setNotice({ show: true, message: error.message || "Unable to register.", isError: true });
       setLoading(false);
     }
   };
