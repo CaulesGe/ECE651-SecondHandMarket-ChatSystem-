@@ -2,42 +2,69 @@
 set -e
 
 # Usage:
-#   bash start.sh          - Start in development mode (backend + client separately)
-#   bash start.sh --docker - Start with Docker (production build on port 3000)
+#   bash start.sh          - Dev mode (backend + client separately)
+#   bash start.sh --docker - Docker production mode (port 3000)
 #   bash start.sh -d       - Same as --docker
 #
-# After changing the database schema:
-#   cd backend
-#   npx prisma generate
-#   npx prisma db push
-#   Then restart this script or run: npm start
+# Env files:
+#   .env.dev    - used in dev mode
+#   .env.docker - used in docker mode
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Check for Docker flag
+is_docker=false
 if [[ "$1" == "--docker" || "$1" == "-d" ]]; then
-    echo "Starting with Docker..."
-    cd "$ROOT_DIR"
-    
-    # Build the Docker image
-    echo "Building Docker image..."
-    docker build -t secondhand-hub .
-    
-    echo ""
-    echo "Starting Docker container..."
-    echo "App will be available at: http://localhost:3000"
-    echo ""
-    echo "Press Ctrl+C to stop the container."
-    echo ""
-    
-    # Run the container (foreground mode)
-    docker run --rm -p 3000:3000 --name secondhand-hub-container secondhand-hub
-    
-    exit 0
+  is_docker=true
 fi
 
-# Development mode (default)
+if $is_docker; then
+  ENV_FILE="$ROOT_DIR/.env.docker"
+else
+  ENV_FILE="$ROOT_DIR/.env.dev"
+fi
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "❌ Missing env file: $ENV_FILE"
+  echo "Create it based on the corresponding .example file."
+  exit 1
+fi
+
+echo "✅ Using env file: $ENV_FILE"
+
+# -------------------------------------------------------------------
+# Docker mode
+# -------------------------------------------------------------------
+if $is_docker; then
+  echo "Starting with Docker..."
+  cd "$ROOT_DIR"
+
+  echo "Building Docker image..."
+  docker build -t secondhand-hub .
+
+  echo ""
+  echo "Starting Docker container..."
+  echo "App will be available at: http://localhost:3000"
+  echo ""
+
+  # IMPORTANT: pass env file into docker run so SMTP + CLIENT_URL are available.
+  docker run --rm \
+    --env-file "$ENV_FILE" \
+    -p 3000:3000 \
+    --name secondhand-hub-container \
+    secondhand-hub
+
+  exit 0
+fi
+
+# -------------------------------------------------------------------
+# Dev mode (default)
+# -------------------------------------------------------------------
 echo "Starting in development mode..."
+
+# Load env into current shell so prisma + node get consistent values
+set -a
+source "$ENV_FILE"
+set +a
 
 echo "Starting backend..."
 cd "$ROOT_DIR/backend"

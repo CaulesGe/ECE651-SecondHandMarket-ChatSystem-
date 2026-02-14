@@ -8,11 +8,15 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.message || 'Login failed');
+      const err = new Error(data.message || 'Login failed');
+      err.code = data.code;
+      throw err;
     }
-    return res.json();
+
+    return data;
   },
 
   async register(name, email, password) {
@@ -100,7 +104,27 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to load transactions');
     return res.json();
-  }
+  },
+
+  async verifyEmail(token, signal) {
+    const res = await fetch(`${API_BASE}/auth/verify?token=${encodeURIComponent(token)}`, { signal });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Email verification failed");
+    return data;
+  },
+
+
+  async resendVerification(email) {
+    const res = await fetch(`${API_BASE}/auth/resend-verification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to resend verification email");
+    return data;
+  },
+
 };
 
 export const formatPrice = (value) => `$${Number(value).toFixed(2)}`;
