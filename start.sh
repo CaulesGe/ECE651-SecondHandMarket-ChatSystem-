@@ -68,6 +68,9 @@ set +a
 
 echo "Starting backend..."
 cd "$ROOT_DIR/backend"
+# Provide a default SQLite DB path for Prisma when DATABASE_URL is not set.
+# Path is relative to backend/prisma/schema.prisma.
+export DATABASE_URL="${DATABASE_URL:-file:../database/secondhand.db}"
 npm install
 npx prisma generate
 npx prisma db push

@@ -5,18 +5,21 @@ import Footer from '../components/Footer';
 import ProductCard from '../components/ProductCard';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useChat } from '../context/ChatContext';
 import { api, formatPrice } from '../utils/api';
 
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const { cart, addToCart, addToRecentlyViewed, recentlyViewed } = useCart();
+  const { createConversation } = useChat();
   
   const [product, setProduct] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addedFeedback, setAddedFeedback] = useState(false);
+  const [chatNotice, setChatNotice] = useState({ show: false, message: '', isError: false });
 
   useEffect(() => {
     loadProduct();
@@ -65,6 +68,42 @@ export default function ProductPage() {
       });
     }
     navigate('/payment');
+  };
+
+  const handleMessageSeller = async () => {
+    if (!product || !isLoggedIn) return;
+
+    // Some listings may not be linked to a concrete seller user ID yet.
+    const sellerUserId = product.sellerId || product.seller?.id || null;
+    if (!sellerUserId) {
+      setChatNotice({
+        show: true,
+        message: 'Messaging is unavailable for this listing because seller account linkage is missing.',
+        isError: true
+      });
+      return;
+    }
+
+    if (sellerUserId === user?.id) {
+      setChatNotice({
+        show: true,
+        message: 'You cannot start a conversation with yourself.',
+        isError: true
+      });
+      return;
+    }
+
+    try {
+      await createConversation(sellerUserId, { contextItemId: product.id });
+      setChatNotice({ show: true, message: 'Conversation ready. Redirecting to chat...', isError: false });
+      setTimeout(() => navigate('/chat'), 400);
+    } catch (error) {
+      setChatNotice({
+        show: true,
+        message: error.message || 'Failed to create conversation. Please try again.',
+        isError: true
+      });
+    }
   };
 
   const isInCart = cart.some(c => c.id === product?.id);
@@ -207,6 +246,16 @@ export default function ProductPage() {
                 </svg>
                 Buy Now
               </button>
+              <button
+                className="btn btn-lg btn-secondary"
+                onClick={handleMessageSeller}
+                disabled={!isLoggedIn}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Message Seller
+              </button>
             </div>
             
             {!isLoggedIn && (
@@ -217,6 +266,11 @@ export default function ProductPage() {
                   <line x1="12" y1="16" x2="12.01" y2="16"></line>
                 </svg>
                 Please login or register to purchase
+              </p>
+            )}
+            {chatNotice.show && (
+              <p className={`notice ${chatNotice.isError ? 'notice-error' : 'notice-success'}`} style={{ marginTop: '12px' }}>
+                {chatNotice.message}
               </p>
             )}
           </div>

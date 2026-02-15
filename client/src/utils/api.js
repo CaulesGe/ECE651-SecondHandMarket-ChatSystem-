@@ -1,4 +1,13 @@
 const API_BASE = '/api';
+const CHAT_BASE = '/chat';
+
+const getAuthHeaders = (user) => ({
+  'Content-Type': 'application/json',
+  'x-user-id': user?.id || '',
+  'x-user-role': user?.role || '',
+  'x-user-name': user?.name || '',
+  'x-user-email': user?.email || ''
+});
 
 export const api = {
   // Auth
@@ -59,6 +68,7 @@ export const api = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-user-id': user.id,
         'x-user-role': user.role,
         'x-user-name': user.name || 'Seller'
       },
@@ -106,6 +116,76 @@ export const api = {
     return res.json();
   },
 
+  // Chat
+  async createConversation(otherUserId, context = {}, user) {
+    const res = await fetch(`${CHAT_BASE}/conversations`, {
+      method: 'POST',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify({
+        otherUserId,
+        contextOrderId: context.contextOrderId,
+        contextItemId: context.contextItemId
+      })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to create conversation');
+    }
+    return res.json();
+  },
+
+  async getConversations(user) {
+    const res = await fetch(`${CHAT_BASE}/conversations`, {
+      headers: getAuthHeaders(user)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to load conversations');
+    }
+    return res.json();
+  },
+
+  async sendMessage(conversationId, type, content, mediaUrl, clientMessageId, user) {
+    const res = await fetch(`${CHAT_BASE}/messages`, {
+      method: 'POST',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify({ conversationId, type, content, mediaUrl, clientMessageId })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to send message');
+    }
+    return res.json();
+  },
+
+  async getMessages(conversationId, afterMessageId = '', user, limit = 100) {
+    const params = new URLSearchParams();
+    if (conversationId) params.append('conversationId', conversationId);
+    if (afterMessageId) params.append('afterMessageId', afterMessageId);
+    if (limit) params.append('limit', String(limit));
+
+    const res = await fetch(`${CHAT_BASE}/messages?${params}`, {
+      headers: getAuthHeaders(user)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to load messages');
+    }
+    return res.json();
+  },
+
+  async markAsRead(conversationId, messageId, user) {
+    const res = await fetch(`${CHAT_BASE}/conversations/${conversationId}/read`, {
+      method: 'POST',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify({ lastReadMessageId: messageId || null })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to mark conversation as read');
+    }
+    return res.json();
+  }
   async verifyEmail(token, signal) {
     const res = await fetch(`${API_BASE}/auth/verify?token=${encodeURIComponent(token)}`, { signal });
     const data = await res.json().catch(() => ({}));
