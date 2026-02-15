@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useNavigate } from 'react-router-dom';
@@ -7,103 +7,20 @@ import Footer from '../components/Footer';
 
 export default function ChatPage() {
   const { user, isLoggedIn } = useAuth();
-  const { chatCount } = useChat();
+  const {
+    conversations,
+    loadingConversations,
+    socketConnected,
+    loadConversations,
+    loadMessages,
+    sendMessageRealtime,
+    markAsRead,
+    getMessagesForConversation
+  } = useChat();
   const navigate = useNavigate();
-  const [selectedChat, setSelectedChat] = useState('notifications');
+  const [selectedChat, setSelectedChat] = useState('');
   const [draft, setDraft] = useState('');
   const messagesEndRef = useRef(null);
-
-  // Generate a stable client-side UUID for new messages (v4)
-  // - Prefer `crypto.randomUUID()` when available (modern browsers)
-  // - Fallback to RFC4122 v4 using `crypto.getRandomValues()`
-  const generateMessageId = () => {
-    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-
-    const bytes = globalThis.crypto?.getRandomValues?.(new Uint8Array(16));
-    if (!bytes) {
-      // Last-resort fallback (should be rare). Still avoids purely time-based IDs.
-      return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
-    // RFC4122 v4: set version (4) and variant (10xx)
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  };
-
-  // Mock message data - replace with actual API calls
-  const initialThreads = useMemo(() => ([
-    {
-      id: 'notifications',
-      type: 'notification',
-      title: 'Notification Messages',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
-      ),
-      lastMessage: 'Login reward received',
-      timestamp: '2 minutes ago',
-      messages: [
-        {
-          id: 1,
-          timestamp: '01:04',
-          icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-            </svg>
-          ),
-          title: 'Login reward received',
-          description: 'Up to 100 coins, can be used as money',
-          actionText: 'Go to redeem',
-          actionLink: '#'
-        },
-        {
-          id: 2,
-          timestamp: '01-19 23:43',
-          title: 'Your level has been updated, **benefits pending collection**',
-          description: 'Red envelopes, traffic coupons and other benefits doubled, quickly check your level>',
-          actionText: 'Activate now',
-          actionLink: '#'
-        },
-        {
-          id: 3,
-          timestamp: '01-14 22:52',
-          title: 'Your benefits **are about to expire!**',
-          description: 'Click to view your benefit details>>',
-          actionText: 'Activate now',
-          actionLink: '#'
-        }
-      ]
-    },
-    {
-      id: 'support',
-      type: 'chat',
-      title: 'Support Chat',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-      ),
-      lastMessage: '[Chat with us]',
-      timestamp: '2024-12-25',
-      messages: [
-        {
-          id: 1,
-          timestamp: '10:30',
-          title: 'Welcome to Secondhand Hub!',
-          description: 'How can we help you today?',
-          actionText: 'Start chatting',
-          actionLink: '#'
-        }
-      ]
-    }
-  ]), []);
-
-  const [threads, setThreads] = useState(initialThreads);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -111,61 +28,101 @@ export default function ChatPage() {
     }
   }, [isLoggedIn, navigate]);
 
+  // Initial conversation hydration.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    loadConversations().catch(() => {});
+  }, [isLoggedIn, loadConversations]);
+
+  // Ensure a valid selected conversation when list changes.
+  useEffect(() => {
+    if (!selectedChat && conversations.length > 0) {
+      setSelectedChat(conversations[0].id);
+    } else if (
+      selectedChat &&
+      conversations.length > 0 &&
+      // selectedChat is not in the conversations list, eg. deleted
+      !conversations.some((c) => c.id === selectedChat)
+    ) {
+      setSelectedChat(conversations[0].id);
+    }
+  }, [conversations, selectedChat]);
+
+  // Load messages when user switches conversation and mark latest as read.
+  useEffect(() => {
+    if (!selectedChat) return;
+    loadMessages(selectedChat).then((items) => {
+      const latest = items[items.length - 1];
+      markAsRead(selectedChat, latest?.id || null).catch(() => {});
+    }).catch(() => {});
+  }, [selectedChat, loadMessages, markAsRead]);
+
   if (!isLoggedIn) {
     return null;
   }
 
-  const currentThread = threads.find(t => t.id === selectedChat) || threads[0];
-  const canSendMessage = currentThread?.type === 'chat';
+  const currentConversation = conversations.find((t) => t.id === selectedChat) || null;
+  const currentMessages = currentConversation ? getMessagesForConversation(currentConversation.id) : [];
+  const canSendMessage = Boolean(currentConversation);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };
 
-  const formatTimeHHMM = (date) => (
-    new Intl.DateTimeFormat('en-CA', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
-  );
+  const formatTimeHHMM = (dateLike) => {
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(date);
+  };
 
-  const handleSend = (e) => {
+  const formatListTime = (dateLike) => {
+    if (!dateLike) return '';
+    const date = new Date(dateLike);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('en-CA', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(date);
+  };
+
+  const getMessagePreview = (message) => {
+    if (!message) return 'No messages yet';
+    if (message.type === 'image') return '[Image]';
+    if (message.type === 'video') return '[Video]';
+    return message.content || 'Message';
+  };
+
+  const handleSend = async (e) => {
     e.preventDefault();
-    if (!canSendMessage) return;
+    if (!canSendMessage || !currentConversation) return;
 
     const text = draft.trim();
     if (!text) return;
-
-    const now = new Date();
-    const timeStr = formatTimeHHMM(now);
-    const messageId = generateMessageId();
-    const newMessage = {
-      id: messageId,
-      timestamp: timeStr,
-      title: text,
-      description: '',
-      actionText: null,
-      actionLink: null
-    };
-
-    setThreads(prev =>
-      prev.map(t => {
-        if (t.id !== currentThread.id) return t;
-        return {
-          ...t,
-          lastMessage: text,
-          timestamp: 'Just now',
-          messages: [...t.messages, newMessage]
-        };
-      })
-    );
-    setDraft('');
-    // Ensure we scroll after React paints the new message
-    setTimeout(scrollToBottom, 0);
+    try {
+      await sendMessageRealtime({
+        conversationId: currentConversation.id,
+        type: 'text',
+        content: text,
+        recipientId: currentConversation.participants?.find((p) => p.userId !== user?.id)?.userId
+      });
+      setDraft('');
+      setTimeout(scrollToBottom, 0);
+    } catch {
+      // Keep UX simple for now; detailed error toast can be added later.
+    }
   };
 
   useEffect(() => {
-    // Keep view anchored to newest message when switching threads
+    // Keep view anchored to newest message when switching convs
     scrollToBottom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedChat]);
+  }, [selectedChat, currentMessages.length]);
   
   return (
     <>
@@ -174,33 +131,52 @@ export default function ChatPage() {
         <div className="chat-container">
           {/* Left Sidebar - Message List */}
           <aside className="chat-sidebar">
-            <h2 className="chat-sidebar-title">Messages</h2>
+            <h2 className="chat-sidebar-title">
+              Messages {socketConnected ? '' : '(offline)'}
+            </h2>
             <div className="chat-list">
-              {threads.map(thread => (
-                <button
-                  key={thread.id}
-                  className={`chat-item ${selectedChat === thread.id ? 'active' : ''}`}
-                  onClick={() => setSelectedChat(thread.id)}
-                >
-                  <div className={`chat-item-icon ${thread.type}`}>
-                    {thread.icon}
-                  </div>
-                  <div className="chat-item-content">
-                    <div className="chat-item-title">{thread.title}</div>
-                    <div className="chat-item-preview">{thread.lastMessage}</div>
-                    <div className="chat-item-time">{thread.timestamp}</div>
-                  </div>
-                </button>
-              ))}
+              {loadingConversations ? (
+                <div className="chat-item-time">Loading conversations...</div>
+              ) : conversations.length === 0 ? (
+                <div className="chat-item-time">No conversations yet.</div>
+              ) : (
+                conversations.map((conversation) => {
+                  const otherParticipant = conversation.participants?.find(
+                    (p) => p.user?.id !== user?.id
+                  )?.user;
+                  const title = otherParticipant?.name || `Conversation ${conversation.id.slice(0, 6)}`;
+                  const lastMessage = conversation.lastMessage || null;
+                  return (
+                    <button
+                      key={conversation.id}
+                      className={`chat-item ${selectedChat === conversation.id ? 'active' : ''}`}
+                      onClick={() => setSelectedChat(conversation.id)}
+                    >
+                      <div className="chat-item-icon chat">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                      </div>
+                      <div className="chat-item-content">
+                        <div className="chat-item-title">{title}</div>
+                        <div className="chat-item-preview">{getMessagePreview(lastMessage)}</div>
+                        <div className="chat-item-time">{formatListTime(lastMessage?.createdAt || conversation.updatedAt)}</div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </aside>
 
           {/* Right Pane - Message Details */}
           <main className="chat-main">
-            {/* Chat Header: Displays current thread title and action buttons */}
+            {/* Chat Header: Displays current conv title and action buttons */}
             <div className="chat-header">
-              <h2 className="chat-header-title">{currentThread.title}</h2>
-              {/* Action buttons for thread management (archive, mark as read, etc.) */}
+              <h2 className="chat-header-title">
+                {currentConversation ? `Conversation ${currentConversation.id.slice(0, 6)}` : 'Messages'}
+              </h2>
+              {/* Action buttons for conv management (archive, mark as read, etc.) */}
               <div className="chat-header-actions">
                 <button className="chat-header-btn" aria-label="Archive">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -218,10 +194,10 @@ export default function ChatPage() {
               </div>
             </div>
 
-            {/* Messages Container: Scrollable area displaying all messages in the thread */}
+            {/* Messages Container: Scrollable area displaying all messages in the conv */}
             <div className="chat-messages">
-              {/* Render each message in the current thread */}
-              {currentThread.messages.map((message, index) => (
+              {/* Render each message in the current conv */}
+              {currentMessages.map((message, index) => (
                 <div key={message.id} className="message-bubble">
                   {/* 
                     Timestamp Display Logic:
@@ -229,16 +205,29 @@ export default function ChatPage() {
                     if the timestamp differs from the previous message.
                     This prevents duplicate timestamps for messages sent at the same time.
                   */}
-                  {index === 0 || currentThread.messages[index - 1].timestamp !== message.timestamp ? (
-                    <div className="message-timestamp">{message.timestamp}</div>
+                  {index === 0 || currentMessages[index - 1].createdAt !== message.createdAt ? (
+                    <div className="message-timestamp">{formatTimeHHMM(message.createdAt)}</div>
                   ) : null}
                   
                   {/* Message Content: Contains icon, title, description, and action link */}
                   <div className="message-content">
                     {/* Optional icon displayed on the left side of the message (e.g., notification bell, money bag) */}
-                    {message.icon && (
+                    {message.type !== 'text' && (
                       <div className="message-icon">
-                        {message.icon}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          {message.type === 'image' ? (
+                            <>
+                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                              <polyline points="21 15 16 10 5 21"></polyline>
+                            </>
+                          ) : (
+                            <>
+                              <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                            </>
+                          )}
+                        </svg>
                       </div>
                     )}
                     
@@ -249,24 +238,16 @@ export default function ChatPage() {
                         Converts **text** to <strong>text</strong> for rendering
                         Note: Using dangerouslySetInnerHTML requires sanitization in production
                       */}
-                      <div className="message-title" dangerouslySetInnerHTML={{ 
-                        __html: message.title.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') 
-                      }}></div>
+                      <div className="message-title">
+                        {message.type === 'text' ? (message.content || '') : getMessagePreview(message)}
+                      </div>
                       
                       {/* Optional description text providing additional context */}
-                      {message.description && (
-                        <div className="message-description">{message.description}</div>
+                      {message.mediaUrl && (
+                        <div className="message-description">{message.mediaUrl}</div>
                       )}
                       
                       {/* Optional action link (e.g., "Go to redeem", "Activate now") */}
-                      {message.actionText && (
-                        <a href={message.actionLink} className="message-action">
-                          {message.actionText}
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="9 18 15 12 9 6"></polyline>
-                          </svg>
-                        </a>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -274,14 +255,14 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Composer Row: lets users type and send messages (enabled for chat threads only) */}
+            {/* Composer Row: lets users type and send messages (enabled for chat convs only) */}
             <form className="chat-composer" onSubmit={handleSend}>
               <input
                 className="chat-input"
                 type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder={canSendMessage ? 'Type a message…' : 'Messaging is disabled for notifications'}
+                placeholder={canSendMessage ? 'Type a message...' : 'Select a conversation first'}
                 disabled={!canSendMessage}
                 aria-label="Message input"
               />

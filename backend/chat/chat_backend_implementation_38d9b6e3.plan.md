@@ -197,10 +197,6 @@ Socket.IO setup:
 - `getMessages(conversationId, afterMessageId?, limit?)` - Fetch messages for sync
 - `validateMessage(type, content, mediaUrl)` - Input validation
 
-**File: `backend/chat/services/sync.js`**
-
-- `getMissedMessages(userId, conversationId, afterMessageId)` - Return messages after cursor
-
 ### 8. Server Integration
 
 **File: `backend/server.js`**

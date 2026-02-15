@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import http from "http";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
+import { mountChatService } from "./chat/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +12,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const prisma = new PrismaClient();
+const httpServer = http.createServer(app);
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -107,6 +110,13 @@ const seedIfEmpty = async () => {
 
     await prisma.goods.createMany({ data: dummyGoods });
   }
+
+  // Backfill sellerId for legacy listings so chat can resolve a seller user.
+  // We use a stable fallback account in demo data.
+  await prisma.goods.updateMany({
+    where: { sellerId: null },
+    data: { sellerId: "u_admin" }
+  });
 };
 
 const requireRole = (allowedRoles = []) => (req, res, next) => {
@@ -264,6 +274,7 @@ app.post("/api/goods", requireRole(["admin", "user"]), async (req, res) => {
   }
   
   const sellerName = req.header("x-user-name") || "Community Seller";
+  const sellerId = req.header("x-user-id") || null;
   const newItem = {
     id: `g_${Date.now()}`,
     title,
@@ -272,6 +283,7 @@ app.post("/api/goods", requireRole(["admin", "user"]), async (req, res) => {
     condition,
     category,
     images: JSON.stringify(Array.isArray(images) && images.length > 0 ? images : []),
+    sellerId,
     sellerName,
     location: location || "Waterloo, ON",
     listedAt: new Date()
@@ -355,6 +367,9 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
 });
 
 // Catch-all route: serve React app for any non-API routes (client-side routing)
+// Mount chat routes and real-time socket service.
+mountChatService(app, httpServer);
+
 app.get("*", (req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
@@ -362,7 +377,7 @@ app.get("*", (req, res) => {
 const start = async () => {
   await prisma.$connect();
   await seedIfEmpty();
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 };

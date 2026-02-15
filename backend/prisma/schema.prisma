@@ -28,6 +28,7 @@ model Goods {
   condition   String
   category    String
   images      String?
+  sellerId    String?
   sellerName  String
   location    String
   listedAt    DateTime
@@ -98,6 +99,7 @@ model ConversationReadState {
   conversationId    String
   userId            String
   lastReadMessageId String?
+  lastReadMessageCreatedAt DateTime?
   readAt            DateTime?
   conversation      Conversation @relation(fields: [conversationId], references: [id])
   user              User         @relation(fields: [userId], references: [id])
