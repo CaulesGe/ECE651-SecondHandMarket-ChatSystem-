@@ -5,6 +5,9 @@ import http from "http";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { mountChatService } from "./chat/index.js";
+import crypto from "crypto";
+import { isEmailConfigured, sendVerificationEmail } from "./email.js";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +24,17 @@ app.use(express.json({ limit: "1mb" }));
 const clientDistPath = path.join(__dirname, "../client/dist");
 app.use(express.static(clientDistPath));
 
+function getClientUrl() {
+  if (process.env.CLIENT_URL) return process.env.CLIENT_URL;
+  return process.env.NODE_ENV === "production"
+    ? "http://localhost:3000"
+    : "http://localhost:5173";
+}
+
+function makeToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
 // Expanded dummy data with many more products
 const seedIfEmpty = async () => {
   const userCount = await prisma.user.count();
@@ -35,6 +49,7 @@ const seedIfEmpty = async () => {
           email: "admin@secondhand.com",
           password: "admin123",
           role: "admin",
+          emailVerified: true,
           createdAt: new Date("2026-01-01T09:00:00.000Z")
         },
         {
@@ -43,6 +58,7 @@ const seedIfEmpty = async () => {
           email: "jordan@example.com",
           password: "password123",
           role: "user",
+          emailVerified: true,
           createdAt: new Date("2026-01-10T10:45:00.000Z")
         }
       ]
@@ -136,38 +152,142 @@ app.post("/api/auth/login", async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password required." });
   }
+
   const user = await prisma.user.findFirst({
     where: { email, password },
-    select: { id: true, name: true, email: true, role: true }
+    select: { id: true, name: true, email: true, role: true, emailVerified: true }
   });
+
   if (!user) {
     return res.status(401).json({ message: "Invalid credentials." });
   }
+
+  if (!user.emailVerified) {
+    return res.status(403).json({
+      message: "Please verify your email before logging in.",
+      code: "EMAIL_NOT_VERIFIED"
+    });
+  }
+
   return res.json({ user });
 });
+
 
 app.post("/api/auth/register", async (req, res) => {
   const { name, email, password } = req.body || {};
   if (!name || !email || !password) {
     return res.status(400).json({ message: "All fields are required." });
   }
+  if (password.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters." });
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return res.status(409).json({ message: "Email already registered." });
   }
+
+  const token = makeToken();
+  console.log("[REGISTER]", email, "token=", token);
+  const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
   const newUser = {
     id: `u_${Date.now()}`,
     name,
     email,
     password,
     role: "user",
-    createdAt: new Date()
+    createdAt: new Date(),
+    emailVerified: false,
+    verificationToken: token,
+    verificationExpires: expires
   };
+
   await prisma.user.create({ data: newUser });
+
+  const verifyUrl = `${getClientUrl()}/verify-email?token=${token}`;
+
+  if (!isEmailConfigured()) {
+    return res.status(201).json({
+      user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role, emailVerified: false },
+      message: "Account created. Email service not configured, so verification email was not sent."
+    });
+  }
+
+  try {
+    await sendVerificationEmail({ to: email, name, verifyUrl });
+  } catch (e) {
+    return res.status(500).json({
+      message: "Account created, but failed to send verification email. Please try resend."
+    });
+  }
+
   return res.status(201).json({
-    user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }
+    user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role, emailVerified: false },
+    message: "Account created. Please check your email to verify your account."
   });
 });
+
+app.get("/api/auth/verify", async (req, res) => {
+  const { token } = req.query;
+  console.log("[REGISTER]", "token=", token);
+  if (!token) return res.status(400).json({ message: "Missing token." });
+
+  const user = await prisma.user.findFirst({
+    where: { verificationToken: String(token) }
+  });
+
+  if (!user) return res.status(400).json({ message: "Invalid token." });
+  if (user.emailVerified) {
+    return res.json({ message: "Email already verified." });
+  }
+  // console.log("[VERIFY] token=", token);
+  // console.log("[VERIFY] now=", new Date().toISOString());
+  // console.log("[VERIFY] dbExpires=", user?.verificationExpires?.toISOString(), "verified=", user?.emailVerified);
+
+  if (!user.verificationExpires || user.verificationExpires < new Date()) {
+    return res.status(400).json({ message: "Token expired." });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerified: true,
+      // verificationToken: null,
+      verificationExpires: null
+    }
+  });
+
+  return res.json({ message: "Email verified successfully." });
+});
+
+app.post("/api/auth/resend-verification", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ message: "Email is required." });
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return res.status(404).json({ message: "User not found." });
+  if (user.emailVerified) return res.status(400).json({ message: "Email already verified." });
+
+  const token = makeToken();
+  console.log("[REGISTER]", email, "token=", token);
+  const expires = new Date(Date.now() + 1000 * 60 * 60);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { verificationToken: token, verificationExpires: expires }
+  });
+
+  const verifyUrl = `${getClientUrl()}/verify-email?token=${token}`;
+
+  if (!isEmailConfigured()) {
+    return res.json({ message: "Email service not configured, cannot send verification email." });
+  }
+
+  await sendVerificationEmail({ to: email, name: user.name, verifyUrl });
+  return res.json({ message: "Verification email resent." });
+});
+
 
 // Get all goods with optional search and category filter
 app.get("/api/goods", async (req, res) => {

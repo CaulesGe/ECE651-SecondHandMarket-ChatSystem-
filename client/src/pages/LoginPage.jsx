@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState({ show: false, message: '', isError: true });
+  const [showResend, setShowResend] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,7 +21,7 @@ export default function LoginPage() {
       setNotice({ show: true, message: 'Please enter your email and password.', isError: true });
       return;
     }
-
+    setShowResend(false);
     setLoading(true);
     
     try {
@@ -34,8 +35,25 @@ export default function LoginPage() {
     } catch (error) {
       setNotice({ show: true, message: error.message || 'Invalid credentials. Try again.', isError: true });
       setLoading(false);
+      if (error.code == "EMAIL_NOT_VERIFIED") {
+        setShowResend(true);
+      }
     }
   };
+
+  const handleResend = async () => {
+    if (!email) {
+      setNotice({ show: true, message: "Enter your email first.", isError: true });
+      return;
+    }
+    try {
+      const data = await api.resendVerification(email);
+      setNotice({ show: true, message: data.message || "Verification email resent.", isError: false });
+    } catch (e) {
+      setNotice({ show: true, message: e.message || "Failed to resend.", isError: true });
+    }
+  };
+
 
   return (
     <>
@@ -110,6 +128,18 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {showResend && (
+          <button
+            type="button"
+            className="btn"
+            style={{ width: "100%", marginTop: "8px" }}
+            onClick={handleResend}
+          >
+            Resend verification email
+          </button>
+        )}
+
 
         <p className="form-footer">
           New here? <Link to="/register">Create an account</Link>

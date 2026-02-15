@@ -11,6 +11,8 @@ import PaymentPage from './pages/PaymentPage';
 import AdminPage from './pages/AdminPage';
 import ProfilePage from './pages/ProfilePage';
 import ChatPage from './pages/ChatPage';
+import VerifyEmailPage from "./pages/VerifyEmailPage";
+
 
 export default function App() {
   return (
@@ -23,6 +25,7 @@ export default function App() {
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/product/:id" element={<ProductPage />} />
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="/admin" element={<AdminPage />} />

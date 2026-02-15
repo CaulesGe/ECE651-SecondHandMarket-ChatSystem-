@@ -18,6 +18,9 @@ model User {
   chatParticipants ConversationParticipant[]
   chatMessages Message[]
   chatReadStates ConversationReadState[]
+  emailVerified       Boolean  @default(false)
+  verificationToken   String?  @unique
+  verificationExpires DateTime?
 }
 
 model Goods {
