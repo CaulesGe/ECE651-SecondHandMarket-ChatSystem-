@@ -1,10 +1,12 @@
 // Socket.IO server for real-time chat delivery.
 import { Server } from "socket.io";
+import { PrismaClient } from "@prisma/client";
 import { authenticateSocket } from "./auth.js";
 import { sendMessage } from "./services/message.js";
 
 // Track connected sockets per user for routing.
 const userSockets = new Map();
+const prisma = new PrismaClient();
 
 // Add a socket to the in-memory user map.
 const addUserSocket = (userId, socket) => {
@@ -77,10 +79,19 @@ export const initChatSocket = (httpServer) => {
           callback(ackPayload);
         }
 
-        // Deliver message to the recipient if they are online.
+        // Fan out to all participants so sender's other tabs and recipients stay in sync.
+        const participants = await prisma.conversationParticipant.findMany({
+          where: { conversationId: payload.conversationId },
+          select: { userId: true }
+        });
+        const targetUserIds = new Set(participants.map((p) => p.userId));
+        // Keep backward compatibility if recipientId is provided by older clients.
         if (payload.recipientId) {
-          emitToUser(payload.recipientId, "message", { message });
+          targetUserIds.add(payload.recipientId);
         }
+        targetUserIds.forEach((targetUserId) => {
+          emitToUser(targetUserId, "message", { message });
+        });
       } catch (error) {
         if (typeof callback === "function") {
           callback({ error: error.message || "Failed to send message" });

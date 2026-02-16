@@ -9,9 +9,9 @@ import { initChatSocket } from "./websocket.js";
 
 // Mount the chat service into the main Express app and HTTP server.
 export const mountChatService = (app, httpServer) => {
-  // Attach REST endpoints under /chat.
+  // Attach REST endpoints under /api/chat to avoid conflict with frontend /chat route.
   const chatRouter = createChatRouter();
-  app.use("/chat", chatRouter);
+  app.use("/api/chat", chatRouter);
 
   // Initialize Socket.IO for real-time chat delivery.
   initChatSocket(httpServer);

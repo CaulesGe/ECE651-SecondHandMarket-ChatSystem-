@@ -16,7 +16,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.8.1",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
     "nodemailer": "^8.0.1"
   },
   "devDependencies": {

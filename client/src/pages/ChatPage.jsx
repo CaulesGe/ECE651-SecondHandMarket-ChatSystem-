@@ -99,6 +99,15 @@ export default function ChatPage() {
     return message.content || 'Message';
   };
 
+  const getSenderName = (message) => {
+    const participantName = currentConversation?.participants?.find(
+      (participant) => participant.userId === message?.senderId
+    )?.user?.name;
+    if (participantName) return participantName;
+    if (message?.senderId === user?.id) return user?.name || 'You';
+    return message?.senderName || message?.senderId || 'Unknown user';
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!canSendMessage || !currentConversation) return;
@@ -120,8 +129,11 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    // Keep view anchored to newest message when switching convs
+    // Keep view anchored to newest message and mark active conversation as read.
     scrollToBottom();
+    if (!selectedChat || currentMessages.length === 0) return;
+    const latest = currentMessages[currentMessages.length - 1];
+    markAsRead(selectedChat, latest?.id || null).catch(() => {});
   }, [selectedChat, currentMessages.length]);
   
   return (
@@ -210,6 +222,9 @@ export default function ChatPage() {
                   ) : null}
                   
                   {/* Message Content: Contains icon, title, description, and action link */}
+                  <div className={`message-description ${message.senderId === user?.id ? 'message-sender-self' : 'message-recipient'}`}>
+                    {getSenderName(message)}
+                  </div>
                   <div className="message-content">
                     {/* Optional icon displayed on the left side of the message (e.g., notification bell, money bag) */}
                     {message.type !== 'text' && (

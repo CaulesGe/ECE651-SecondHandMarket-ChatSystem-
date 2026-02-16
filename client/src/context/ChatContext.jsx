@@ -12,6 +12,7 @@ export function ChatProvider({ children }) {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const socketRef = useRef(null);
+  const socketServerUrl = import.meta.env.DEV ? 'http://localhost:3000' : undefined;
 
    // Load all conversations for the authenticated user.
   const loadConversations = useCallback(async () => {
@@ -128,15 +129,19 @@ export function ChatProvider({ children }) {
     // Initial conversation hydration.
     loadConversations().catch(() => {});
 
-    const socket = io('/', {
+    const socket = io(socketServerUrl, {
       path: '/socket.io',
       auth: {
-        userId: user.id,
-        role: user.role,
-        name: user.name,
-        email: user.email
+        token: user?.token,
+        userId: user?.id,
+        role: user?.role,
+        name: user?.name,
+        email: user?.email
       },
-      transports: ['websocket', 'polling']
+      // Use websocket-only transport in dev to avoid proxy noise from polling aborts on refresh.
+      transports: ['websocket'],
+      reconnectionAttempts: 5,
+      timeout: 10000
     });
 
     socketRef.current = socket;
@@ -146,6 +151,10 @@ export function ChatProvider({ children }) {
     });
 
     socket.on('disconnect', () => {
+      setSocketConnected(false);
+    });
+
+    socket.on('connect_error', () => {
       setSocketConnected(false);
     });
 
@@ -172,7 +181,7 @@ export function ChatProvider({ children }) {
       socketRef.current = null;
       setSocketConnected(false);
     };
-  }, [isLoggedIn, user?.id, user?.role, user?.name, user?.email, loadConversations, loadMessages, mergeMessages]);
+  }, [isLoggedIn, user?.id, user?.role, user?.name, user?.email, loadConversations, loadMessages, mergeMessages, socketServerUrl]);
 
   const chatCount = useMemo(
     () => conversations.reduce((sum, convo) => sum + Number(convo.unreadCount || 0), 0),
