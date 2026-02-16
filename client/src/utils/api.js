@@ -1,8 +1,9 @@
 const API_BASE = '/api';
-const CHAT_BASE = '/chat';
+const CHAT_BASE = '/api/chat';
 
 const getAuthHeaders = (user) => ({
   'Content-Type': 'application/json',
+  ...(user?.token ? { Authorization: `Bearer ${user.token}` } : {}),
   'x-user-id': user?.id || '',
   'x-user-role': user?.role || '',
   'x-user-name': user?.name || '',
@@ -25,6 +26,10 @@ export const api = {
       throw err;
     }
 
+    // Backward compatible shape: LoginPage uses data.user.
+    if (data?.user && data?.token) {
+      data.user = { ...data.user, token: data.token };
+    }
     return data;
   },
 
@@ -185,7 +190,7 @@ export const api = {
       throw new Error(data.message || 'Failed to mark conversation as read');
     }
     return res.json();
-  }
+  },
   async verifyEmail(token, signal) {
     const res = await fetch(`${API_BASE}/auth/verify?token=${encodeURIComponent(token)}`, { signal });
     const data = await res.json().catch(() => ({}));

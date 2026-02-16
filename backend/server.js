@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { mountChatService } from "./chat/index.js";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { isEmailConfigured, sendVerificationEmail } from "./email.js";
 
 
@@ -16,13 +17,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const prisma = new PrismaClient();
 const httpServer = http.createServer(app);
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
 // Serve static files from the client build directory in production
 const clientDistPath = path.join(__dirname, "../client/dist");
-app.use(express.static(clientDistPath));
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(clientDistPath));
+}
 
 function getClientUrl() {
   if (process.env.CLIENT_URL) return process.env.CLIENT_URL;
@@ -169,7 +173,13 @@ app.post("/api/auth/login", async (req, res) => {
     });
   }
 
-  return res.json({ user });
+  const token = jwt.sign(
+    { sub: user.id, id: user.id, name: user.name, email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  return res.json({ user, token });
 });
 
 
@@ -490,9 +500,11 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
 // Mount chat routes and real-time socket service.
 mountChatService(app, httpServer);
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(clientDistPath, "index.html"));
-});
+if (process.env.NODE_ENV === "production") {
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 const start = async () => {
   await prisma.$connect();

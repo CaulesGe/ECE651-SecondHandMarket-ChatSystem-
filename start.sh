@@ -68,6 +68,8 @@ set +a
 
 echo "Starting backend..."
 cd "$ROOT_DIR/backend"
+# Set development JWT secret if not provided by environment.
+export JWT_SECRET="${JWT_SECRET:-dev-secret-change-me}"
 # Provide a default SQLite DB path for Prisma when DATABASE_URL is not set.
 # Path is relative to backend/prisma/schema.prisma.
 export DATABASE_URL="${DATABASE_URL:-file:../database/secondhand.db}"
