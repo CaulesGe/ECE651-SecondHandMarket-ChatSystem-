@@ -8,18 +8,11 @@ const prisma = new PrismaClient();
 // Supported message types.
 const ALLOWED_TYPES = new Set(["text", "image", "video"]);
 
-// Simple URL validation for media messages.
-const isValidUrl = (value) => {
-  try {
-    const url = new URL(value);
-    return ["http:", "https:"].includes(url.protocol);
-  } catch {
-    return false;
-  }
-};
+// Basic object-key validation for media messages.
+const isValidObjectKey = (value) => typeof value === "string" && value.trim().length > 0;
 
 // Validate message payload and return a normalized shape.
-export const validateMessage = ({ type, content, mediaUrl }) => {
+export const validateMessage = ({ type, content, mediaObjectKey }) => {
   if (!type || !ALLOWED_TYPES.has(type)) {
     throw new Error("Unsupported message type");
   }
@@ -28,14 +21,14 @@ export const validateMessage = ({ type, content, mediaUrl }) => {
     if (!content || !content.trim()) {
       throw new Error("Text message content required");
     }
-    return { type, content: content.trim(), mediaUrl: null };
+    return { type, content: content.trim(), mediaObjectKey: null };
   }
 
-  if (!mediaUrl || !isValidUrl(mediaUrl)) {
-    throw new Error("Valid media URL required");
+  if (!mediaObjectKey || !isValidObjectKey(mediaObjectKey)) {
+    throw new Error("Valid media object key required");
   }
 
-  return { type, content: content?.trim() || null, mediaUrl };
+  return { type, content: content?.trim() || null, mediaObjectKey: mediaObjectKey.trim() };
 };
 
 // Persist and return a new message.
@@ -44,7 +37,7 @@ export const sendMessage = async ({
   senderId,
   type,
   content,
-  mediaUrl,
+  mediaObjectKey,
   clientMessageId
 }) => {
   if (!conversationId || !senderId) {
@@ -60,7 +53,7 @@ export const sendMessage = async ({
   }
 
   // Normalize and validate payload fields.
-  const normalized = validateMessage({ type, content, mediaUrl });
+  const normalized = validateMessage({ type, content, mediaObjectKey });
 
   // Use clientMessageId for idempotency; generate one if missing.
   const safeClientMessageId = clientMessageId || uuidv4();
@@ -73,7 +66,7 @@ export const sendMessage = async ({
         senderId,
         type: normalized.type,
         content: normalized.content,
-        mediaUrl: normalized.mediaUrl,
+        mediaObjectKey: normalized.mediaObjectKey,
         clientMessageId: safeClientMessageId
       }
     });
