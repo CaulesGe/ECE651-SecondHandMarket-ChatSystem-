@@ -87,7 +87,7 @@ model Message {
   senderId        String
   type            String
   content         String?
-  mediaUrl        String?
+  mediaObjectKey  String?
   clientMessageId String
   createdAt       DateTime     @default(now())
   conversation    Conversation @relation(fields: [conversationId], references: [id])

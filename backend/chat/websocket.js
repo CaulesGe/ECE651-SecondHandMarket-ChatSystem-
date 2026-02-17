@@ -65,7 +65,7 @@ export const initChatSocket = (httpServer) => {
           senderId: userId,
           type: payload.type,
           content: payload.content,
-          mediaUrl: payload.mediaUrl,
+          mediaObjectKey: payload.mediaObjectKey,
           clientMessageId: payload.clientMessageId
         });
 

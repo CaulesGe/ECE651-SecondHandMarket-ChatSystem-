@@ -4,6 +4,7 @@ import { api } from '../utils/api';
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext(null);
+const CHAT_MEDIA_MAX_SIZE_BYTES = 100 * 1024 * 1024;
 
 export function ChatProvider({ children }) {
   const { user, isLoggedIn } = useAuth();
@@ -74,7 +75,7 @@ export function ChatProvider({ children }) {
     conversationId,
     type = 'text',
     content = '',
-    mediaUrl = null,
+    mediaObjectKey = null,
     recipientId = null
   }) => {
     if (!isLoggedIn || !user?.id) throw new Error('Not authenticated');
@@ -85,7 +86,7 @@ export function ChatProvider({ children }) {
       await new Promise((resolve, reject) => {
         socket.emit(
           'send_message',
-          { conversationId, type, content, mediaUrl, clientMessageId, recipientId },
+          { conversationId, type, content, mediaObjectKey, clientMessageId, recipientId },
           (ack) => {
             if (ack?.error) reject(new Error(ack.error));
             else resolve(ack);
@@ -93,13 +94,56 @@ export function ChatProvider({ children }) {
         );
       });
     } else {
-      await api.sendMessage(conversationId, type, content, mediaUrl, clientMessageId, user);
+      await api.sendMessage(conversationId, type, content, mediaObjectKey, clientMessageId, user);
     }
 
     // Sync latest data after send for consistent local state.
     await loadMessages(conversationId);
     await loadConversations();
   }, [isLoggedIn, user, generateClientMessageId, loadMessages, loadConversations]);
+
+  // Upload media file to S3 via presigned URL and return objectKey for message payload.
+  const uploadMediaForConversation = useCallback(async (conversationId, file) => {
+    if (!isLoggedIn || !user?.id) throw new Error('Not authenticated');
+    if (!conversationId) throw new Error('conversationId is required');
+    if (!file) throw new Error('No file selected');
+    if (file.size > CHAT_MEDIA_MAX_SIZE_BYTES) {
+      throw new Error('File size exceeds 100MB limit');
+    }
+
+    const fileName = String(file.name || '').trim();
+    const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : undefined;
+
+    // get the presigned URL to upload the media file to S3
+    const presigned = await api.presignChatUpload(
+      conversationId,
+      file.type || 'application/octet-stream',
+      file.size,
+      extension,
+      user
+    );
+
+    const uploadRes = await fetch(presigned.uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file
+    });
+    if (!uploadRes.ok) {
+      throw new Error('Failed to upload media to storage');
+    }
+
+    return {
+      objectKey: presigned.objectKey,
+      expiresIn: presigned.expiresIn
+    };
+  }, [isLoggedIn, user]);
+
+  // Resolve a short-lived media download URL from an object key.
+  const signMediaDownload = useCallback(async (objectKey) => {
+    if (!isLoggedIn || !user?.id) throw new Error('Not authenticated');
+    if (!objectKey) throw new Error('Media key is required');
+    return api.signChatDownload(objectKey, user);
+  }, [isLoggedIn, user]);
 
   // Mark conversation read at latest message id and refresh unread counts.
   const markAsRead = useCallback(async (conversationId, lastReadMessageId = null) => {
@@ -198,6 +242,8 @@ export function ChatProvider({ children }) {
       loadMessages,
       createConversation,
       sendMessageRealtime,
+      uploadMediaForConversation,
+      signMediaDownload,
       markAsRead,
       getMessagesForConversation
     }}>

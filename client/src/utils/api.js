@@ -1,5 +1,6 @@
 const API_BASE = '/api';
 const CHAT_BASE = '/api/chat';
+const CHAT_MEDIA_MAX_SIZE_BYTES = 100 * 1024 * 1024;
 
 const getAuthHeaders = (user) => ({
   'Content-Type': 'application/json',
@@ -150,15 +151,52 @@ export const api = {
     return res.json();
   },
 
-  async sendMessage(conversationId, type, content, mediaUrl, clientMessageId, user) {
+  async sendMessage(conversationId, type, content, mediaObjectKey, clientMessageId, user) {
     const res = await fetch(`${CHAT_BASE}/messages`, {
       method: 'POST',
       headers: getAuthHeaders(user),
-      body: JSON.stringify({ conversationId, type, content, mediaUrl, clientMessageId })
+      body: JSON.stringify({ conversationId, type, content, mediaObjectKey, clientMessageId })
     });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.message || 'Failed to send message');
+    }
+    return res.json();
+  },
+
+  async presignChatUpload(conversationId, mimeType, size, extension, user) {
+    if (!conversationId || !mimeType) {
+      throw new Error('conversationId and mimeType are required');
+    }
+    const numericSize = Number(size);
+    if (!Number.isFinite(numericSize) || numericSize <= 0) {
+      throw new Error('Invalid media size');
+    }
+    if (numericSize > CHAT_MEDIA_MAX_SIZE_BYTES) {
+      throw new Error('Media size exceeds 100MB limit');
+    }
+
+    const res = await fetch(`${CHAT_BASE}/media/presign-upload`, {
+      method: 'POST',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify({ conversationId, mimeType, size: numericSize, extension })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to get upload URL');
+    }
+    return res.json();
+  },
+
+  async signChatDownload(key, user) {
+    if (!key) throw new Error('Media key is required');
+    const params = new URLSearchParams({ key });
+    const res = await fetch(`${CHAT_BASE}/media/sign-download?${params}`, {
+      headers: getAuthHeaders(user)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to sign download URL');
     }
     return res.json();
   },

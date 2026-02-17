@@ -14,13 +14,26 @@ export default function ChatPage() {
     loadConversations,
     loadMessages,
     sendMessageRealtime,
+    uploadMediaForConversation,
+    signMediaDownload,
     markAsRead,
     getMessagesForConversation
   } = useChat();
   const navigate = useNavigate();
   const [selectedChat, setSelectedChat] = useState('');
   const [draft, setDraft] = useState('');
+  const [composerError, setComposerError] = useState('');
+  const [dragOverComposer, setDragOverComposer] = useState(false);
+  const [signedMediaUrls, setSignedMediaUrls] = useState({});
+  // refs for the messages end, file input, media upload in flight, queued media upload, and failed media keys
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const mediaUploadInFlightRef = useRef(false);
+  const queuedMediaUploadRef = useRef([]);
+  const failedMediaKeysRef = useRef(new Set());
+  // state for pending files
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const pendingFilesRef = useRef([]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -64,9 +77,15 @@ export default function ChatPage() {
   const currentConversation = conversations.find((t) => t.id === selectedChat) || null;
   const currentMessages = currentConversation ? getMessagesForConversation(currentConversation.id) : [];
   const canSendMessage = Boolean(currentConversation);
+  const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  const handleMediaRendered = () => {
+    // Media height can expand after initial render; scroll again once loaded.
+    requestAnimationFrame(scrollToBottom);
   };
 
   const formatTimeHHMM = (dateLike) => {
@@ -108,23 +127,161 @@ export default function ChatPage() {
     return message?.senderName || message?.senderId || 'Unknown user';
   };
 
+  // add pending files to the file queue
+  const addPendingFilesToUploadQueue = (files = []) => {
+    if (!files.length) return;
+    const next = [];
+    files.forEach((file) => {
+      const mimeType = file?.type || '';
+      const isImage = mimeType.startsWith('image/');
+      const isVideo = mimeType.startsWith('video/');
+      if (!isImage && !isVideo) return;
+      next.push({
+        id: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `pf_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        file,
+        kind: isImage ? 'image' : 'video',
+        previewUrl: URL.createObjectURL(file)
+      });
+    });
+
+    if (next.length === 0) {
+      setComposerError('Only image and video files are supported.');
+      return;
+    }
+
+    setComposerError('');
+    setPendingFiles((prev) => [...prev, ...next]);
+  };
+
+  const processMediaUpload = async ({ file, conversationId, recipientId }) => {
+    const mimeType = file.type || '';
+    const isImage = mimeType.startsWith('image/');
+    const isVideo = mimeType.startsWith('video/');
+    if (!isImage && !isVideo) {
+      throw new Error('Only image and video files are supported.');
+    }
+
+    mediaUploadInFlightRef.current = true;
+    try {
+      const { objectKey } = await uploadMediaForConversation(conversationId, file);
+      await sendMessageRealtime({
+        conversationId,
+        type: isImage ? 'image' : 'video',
+        content: '',
+        mediaObjectKey: objectKey,
+        recipientId
+      });
+      setTimeout(scrollToBottom, 0);
+    } finally {
+      mediaUploadInFlightRef.current = false;
+
+      // Process next queued upload, if any (FIFO).
+      const queuedUpload = queuedMediaUploadRef.current.shift();
+      if (queuedUpload) {
+        processMediaUpload(queuedUpload).catch((error) => {
+          setComposerError(error?.message || 'Failed to send message.');
+        });
+      }
+    }
+  };
+
+  // enqueue upload task  
+  const enqueueUploadTask = (uploadTask) => {
+    // if an upload is already in flight, keep all pending uploads and process them in order.
+    if (mediaUploadInFlightRef.current) {
+      // Keep all pending uploads and process them in order.
+      queuedMediaUploadRef.current.push(uploadTask);
+      return;
+    } else {
+    // if no upload is in flight, process the upload immediately.
+      processMediaUpload(uploadTask).catch((error) => {
+        setComposerError(error?.message || 'Failed to send message.');
+      });
+    }
+  };
+
+ 
+  // handle attaching files to the composer
+  const handleAttachFile = (e) => {
+    const files = Array.from(e.target.files || []);
+    addPendingFilesToUploadQueue(files);
+    // reset the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+
+  // handle composer drag over
+  const handleComposerDragOver = (e) => {
+    e.preventDefault();
+    if (!canSendMessage) return;
+    setDragOverComposer(true);
+  };
+
+  // handle composer drag leave
+  const handleComposerDragLeave = (e) => {
+    e.preventDefault();
+    setDragOverComposer(false);
+  };
+
+  // handle dropped files in composer
+  const handleComposerDrop = (e) => {
+    e.preventDefault();
+    setDragOverComposer(false);
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (!canSendMessage || !currentConversation || files.length === 0) return;
+    addPendingFilesToUploadQueue(files);
+  };
+
+  // remove the pending file from the upload queue when user clicks the remove button
+  const removePendingFileFromUploadQueue = (id) => {
+    setPendingFiles((prev) => {
+      const target = prev.find((item) => item.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((item) => item.id !== id);
+    });
+  };
+
+
+  // handle send button click
   const handleSend = async (e) => {
     e.preventDefault();
     if (!canSendMessage || !currentConversation) return;
 
     const text = draft.trim();
-    if (!text) return;
+    const filesToUpload = pendingFiles;
+    if (!text && filesToUpload.length === 0) return;
+
+    setComposerError('');
+    const recipientId = currentConversation.participants?.find((p) => p.userId !== user?.id)?.userId;
+
     try {
-      await sendMessageRealtime({
-        conversationId: currentConversation.id,
-        type: 'text',
-        content: text,
-        recipientId: currentConversation.participants?.find((p) => p.userId !== user?.id)?.userId
+      if (text) {
+        await sendMessageRealtime({
+          conversationId: currentConversation.id,
+          type: 'text',
+          content: text,
+          recipientId
+        });
+        setDraft('');
+        setTimeout(scrollToBottom, 0);
+      }
+    } catch (error) {
+      setComposerError(error?.message || 'Failed to send message.');
+      return;
+    }
+
+    if (filesToUpload.length > 0) {
+      filesToUpload.forEach((pending) => {
+        URL.revokeObjectURL(pending.previewUrl);
+        enqueueUploadTask({
+          file: pending.file,
+          conversationId: currentConversation.id,
+          recipientId
+        });
       });
-      setDraft('');
-      setTimeout(scrollToBottom, 0);
-    } catch {
-      // Keep UX simple for now; detailed error toast can be added later.
+      setPendingFiles([]);
     }
   };
 
@@ -134,7 +291,57 @@ export default function ChatPage() {
     if (!selectedChat || currentMessages.length === 0) return;
     const latest = currentMessages[currentMessages.length - 1];
     markAsRead(selectedChat, latest?.id || null).catch(() => {});
-  }, [selectedChat, currentMessages.length]);
+  }, [selectedChat, lastMessageId]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !user?.id || currentMessages.length === 0) return;
+    const meaObjectKeys = [...new Set(
+      currentMessages
+        .map((message) => message.mediaObjectKey || message.mediaUrl)
+        .filter(Boolean)
+    )];
+    const pendingKeys = meaObjectKeys.filter(
+      (key) => !signedMediaUrls[key] && !failedMediaKeysRef.current.has(key)
+    );
+    if (pendingKeys.length === 0) return;
+
+    let cancelled = false;
+    // sign the media download urls
+    Promise.all(
+      pendingKeys.map(async (key) => {
+        try {
+          const data = await signMediaDownload(key);
+          return [key, data.downloadUrl];
+        } catch {
+          failedMediaKeysRef.current.add(key);
+          return [key, null];
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      // update the signed media urls
+      setSignedMediaUrls((prev) => {
+        const next = { ...prev };
+        entries.forEach(([key, url]) => {
+          if (url) next[key] = url;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, user?.id, currentMessages, signedMediaUrls, signMediaDownload]);
+
+  useEffect(() => {
+    pendingFilesRef.current = pendingFiles;
+  }, [pendingFiles]);
+
+  // cleanup pending files when component unmounts
+  useEffect(() => () => {
+    pendingFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+  }, []);
   
   return (
     <>
@@ -209,7 +416,10 @@ export default function ChatPage() {
             {/* Messages Container: Scrollable area displaying all messages in the conv */}
             <div className="chat-messages">
               {/* Render each message in the current conv */}
-              {currentMessages.map((message, index) => (
+              {currentMessages.map((message, index) => {
+                const mediaKey = message.mediaObjectKey || message.mediaUrl || null;
+                const mediaDownloadUrl = mediaKey ? signedMediaUrls[mediaKey] : null;
+                return (
                 <div key={message.id} className="message-bubble">
                   {/* 
                     Timestamp Display Logic:
@@ -254,24 +464,87 @@ export default function ChatPage() {
                         Note: Using dangerouslySetInnerHTML requires sanitization in production
                       */}
                       <div className="message-title">
-                        {message.type === 'text' ? (message.content || '') : getMessagePreview(message)}
+                        {message.type === 'text' ? (message.content || '') : ''}
                       </div>
                       
                       {/* Optional description text providing additional context */}
-                      {message.mediaUrl && (
-                        <div className="message-description">{message.mediaUrl}</div>
+                      {message.type === 'image' && mediaDownloadUrl && (
+                        <img
+                          className="message-media message-media-image"
+                          src={mediaDownloadUrl}
+                          alt="Shared image"
+                          loading="lazy"
+                          onLoad={handleMediaRendered}
+                        />
+                      )}
+                      {message.type === 'video' && mediaDownloadUrl && (
+                        <video
+                          className="message-media message-media-video"
+                          controls
+                          preload="metadata"
+                          src={mediaDownloadUrl}
+                          onLoadedData={handleMediaRendered}
+                        />
+                      )}
+                      {mediaKey && !mediaDownloadUrl && (
+                        <div className="message-description">Loading media...</div>
                       )}
                       
                       {/* Optional action link (e.g., "Go to redeem", "Activate now") */}
                     </div>
                   </div>
                 </div>
-              ))}
+              )})}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Composer Row: lets users type and send messages (enabled for chat convs only) */}
-            <form className="chat-composer" onSubmit={handleSend}>
+            <form
+              className={`chat-composer ${dragOverComposer ? 'chat-composer-drag-over' : ''}`}
+              onSubmit={handleSend}
+              onDragOver={handleComposerDragOver}
+              onDragLeave={handleComposerDragLeave}
+              onDrop={handleComposerDrop}
+            >
+              <input
+                ref={fileInputRef}
+                className="chat-file-input"
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={handleAttachFile}
+                disabled={!canSendMessage}
+                aria-label="Attach image or video"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm chat-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!canSendMessage}
+              >
+                Attach
+              </button>
+              {pendingFiles.length > 0 && (
+                <div className="chat-file-preview-list">
+                  {pendingFiles.map((pending) => (
+                    <div key={pending.id} className="chat-file-preview-item" title={pending.file.name}>
+                      {pending.kind === 'image' ? (
+                        <img className="chat-file-preview-thumb" src={pending.previewUrl} alt={pending.file.name} />
+                      ) : (
+                        <video className="chat-file-preview-thumb" src={pending.previewUrl} preload="metadata" muted />
+                      )}
+                      <button
+                        type="button"
+                        className="chat-file-preview-remove"
+                        onClick={() => removePendingFileFromUploadQueue(pending.id)}
+                        aria-label="Remove attachment"
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <input
                 className="chat-input"
                 type="text"
@@ -284,7 +557,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 className="btn btn-primary btn-sm chat-send-btn"
-                disabled={!canSendMessage || !draft.trim()}
+                disabled={!canSendMessage || (!draft.trim() && pendingFiles.length === 0)}
                 aria-label="Send message"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -294,6 +567,7 @@ export default function ChatPage() {
                 Send
               </button>
             </form>
+            {composerError ? <div className="chat-composer-error">{composerError}</div> : null}
           </main>
         </div>
       </div>
