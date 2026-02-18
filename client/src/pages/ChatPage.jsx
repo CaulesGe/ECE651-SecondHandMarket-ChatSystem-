@@ -14,6 +14,7 @@ export default function ChatPage() {
     loadConversations,
     loadMessages,
     sendMessageRealtime,
+    withdrawMessageRealtime,
     uploadMediaForConversation,
     signMediaDownload,
     markAsRead,
@@ -24,16 +25,23 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [composerError, setComposerError] = useState('');
   const [dragOverComposer, setDragOverComposer] = useState(false);
-  const [signedMediaUrls, setSignedMediaUrls] = useState({});
-  // refs for the messages end, file input, media upload in flight, queued media upload, and failed media keys
-  const messagesEndRef = useRef(null);
+  const [withdrawContextMenu, setWithdrawContextMenu] = useState(null);
+  
+  // refs for the file input, media upload in flight, queued media upload, and failed media keys
   const fileInputRef = useRef(null);
   const mediaUploadInFlightRef = useRef(false);
   const queuedMediaUploadRef = useRef([]);
   const failedMediaKeysRef = useRef(new Set());
+  const [signedMediaUrls, setSignedMediaUrls] = useState({}); // track which media download urls are signed
+  const [visibleVideoMessageIds, setVisibleVideoMessageIds] = useState({}); // track which video messages are in viewport
+  const videoVisibilityObserverRef = useRef(null); // observer for video messages in viewport
+  const videoContainerByMessageIdRef = useRef(new Map()); // track video container elements by message id
+  const videoNodeByMessageIdRef = useRef(new Map()); // track HTMLVideoElement nodes by message id
   // state for pending files
   const [pendingFiles, setPendingFiles] = useState([]);
   const pendingFilesRef = useRef([]);
+  // ref for the chat messages container
+  const chatMessagesContainerRef = useRef(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -67,6 +75,8 @@ export default function ChatPage() {
     loadMessages(selectedChat).then((items) => {
       const latest = items[items.length - 1];
       markAsRead(selectedChat, latest?.id || null).catch(() => {});
+      // Ensure selected conversation opens at newest message.
+      requestAnimationFrame(() => scrollToBottom('auto'));
     }).catch(() => {});
   }, [selectedChat, loadMessages, markAsRead]);
 
@@ -79,13 +89,17 @@ export default function ChatPage() {
   const canSendMessage = Boolean(currentConversation);
   const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // scroll to the bottom of the chat messages container
+  const scrollToBottom = (behavior = 'smooth') => {
+    const container = chatMessagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior });
   };
 
-  const handleMediaRendered = () => {
-    // Media height can expand after initial render; scroll again once loaded.
-    requestAnimationFrame(scrollToBottom);
+  const handleMediaRendered = (messageId) => {
+    // Only auto-scroll for the newest message to avoid jump when users interact with older media.
+    if (!messageId || messageId !== lastMessageId) return;
+    requestAnimationFrame(() => scrollToBottom('smooth'));
   };
 
   const formatTimeHHMM = (dateLike) => {
@@ -113,6 +127,7 @@ export default function ChatPage() {
 
   const getMessagePreview = (message) => {
     if (!message) return 'No messages yet';
+    if (message.isWithdrawn) return 'Message withdrawn';
     if (message.type === 'image') return '[Image]';
     if (message.type === 'video') return '[Video]';
     return message.content || 'Message';
@@ -126,6 +141,7 @@ export default function ChatPage() {
     if (message?.senderId === user?.id) return user?.name || 'You';
     return message?.senderName || message?.senderId || 'Unknown user';
   };
+
 
   // add pending files to the file queue
   const addPendingFilesToUploadQueue = (files = []) => {
@@ -192,12 +208,11 @@ export default function ChatPage() {
       // Keep all pending uploads and process them in order.
       queuedMediaUploadRef.current.push(uploadTask);
       return;
-    } else {
-    // if no upload is in flight, process the upload immediately.
-      processMediaUpload(uploadTask).catch((error) => {
-        setComposerError(error?.message || 'Failed to send message.');
-      });
     }
+    // if no upload is in flight, process the upload immediately.
+    processMediaUpload(uploadTask).catch((error) => {
+      setComposerError(error?.message || 'Failed to send message.');
+    });
   };
 
  
@@ -285,22 +300,129 @@ export default function ChatPage() {
     }
   };
 
+  // get the media key from the message
+  const getMediaKey = (message) => message?.mediaObjectKey || message?.mediaUrl || null;
+
+  // bind the video container reference to the message id
+  const bindVideoContainerRef = (messageId) => (element) => {
+    // if the element is found, set the video container reference to the element
+    if (element) {
+      videoContainerByMessageIdRef.current.set(messageId, element);
+      if (videoVisibilityObserverRef.current) {
+        videoVisibilityObserverRef.current.observe(element);
+      }
+      return;
+    }
+    // if the element is not found, unobserve the previous element
+    const previousElement = videoContainerByMessageIdRef.current.get(messageId);
+    if (previousElement && videoVisibilityObserverRef.current) {
+      videoVisibilityObserverRef.current.unobserve(previousElement);
+    }
+    videoContainerByMessageIdRef.current.delete(messageId);
+  };
+
+  // bind the video node reference to the message id
+  const bindVideoNodeRef = (messageId) => (element) => {
+    if (element) {
+      videoNodeByMessageIdRef.current.set(messageId, element);
+      return;
+    }
+    videoNodeByMessageIdRef.current.delete(messageId);
+  };
+
+  const canWithdrawMessage = (message) => {
+    if (!message || message.senderId !== user?.id || message.isWithdrawn) return false;
+    const sentAt = new Date(message.createdAt).getTime();
+    if (!Number.isFinite(sentAt)) return false;
+    return Date.now() - sentAt <= 2 * 60 * 1000;
+  };
+
+  const handleWithdrawMessage = async (message) => {
+    if (!message?.id || !message?.conversationId) return;
+    try {
+      setComposerError('');
+      await withdrawMessageRealtime({
+        messageId: message.id,
+        conversationId: message.conversationId
+      });
+    } catch (error) {
+      setComposerError(error?.message || 'Failed to withdraw message.');
+    }
+  };
+
+  const handleMessageContextMenu = (e, message) => {
+    if (!canWithdrawMessage(message)) {
+      setWithdrawContextMenu(null);
+      return;
+    }
+    e.preventDefault();
+    setWithdrawContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      message
+    });
+  };
+
+  const handleWithdrawFromContextMenu = async () => {
+    const selectedMessage = withdrawContextMenu?.message;
+    setWithdrawContextMenu(null);
+    await handleWithdrawMessage(selectedMessage);
+  };
+
   useEffect(() => {
     // Keep view anchored to newest message and mark active conversation as read.
-    scrollToBottom();
+    scrollToBottom('auto');
     if (!selectedChat || currentMessages.length === 0) return;
     const latest = currentMessages[currentMessages.length - 1];
     markAsRead(selectedChat, latest?.id || null).catch(() => {});
   }, [selectedChat, lastMessageId]);
 
+  // clear the visible video message ids when the selected chat changes
+  useEffect(() => {
+    setVisibleVideoMessageIds({});
+    if (videoVisibilityObserverRef.current) {
+      videoVisibilityObserverRef.current.disconnect();
+      videoVisibilityObserverRef.current = null;
+    }
+    videoContainerByMessageIdRef.current.clear();
+    videoNodeByMessageIdRef.current.clear();
+  }, [selectedChat]);
+
+  // Pause and unload videos when they leave viewport to avoid resource spikes in long chats.
+  useEffect(() => {
+    currentMessages.forEach((message) => {
+      if (message.type !== 'video') return;
+      const element = videoNodeByMessageIdRef.current.get(message.id);
+      if (!element) return;
+      const mediaKey = getMediaKey(message);
+      const isVisible = Boolean(visibleVideoMessageIds[message.id]);
+      const shouldHaveSource = Boolean(isVisible && mediaKey && signedMediaUrls[mediaKey]);
+      // if the video is not in viewport or the media download url is not signed, pause the video
+      if (!shouldHaveSource) {
+        try {
+          element.pause();
+        } catch {
+          // No-op; some browsers may throw if media isn't initialized.
+        }
+      }
+    });
+  }, [currentMessages, visibleVideoMessageIds, signedMediaUrls]);
+
+  
+  // sign the media download urls
   useEffect(() => {
     if (!isLoggedIn || !user?.id || currentMessages.length === 0) return;
-    const meaObjectKeys = [...new Set(
-      currentMessages
-        .map((message) => message.mediaObjectKey || message.mediaUrl)
-        .filter(Boolean)
-    )];
-    const pendingKeys = meaObjectKeys.filter(
+    const imageKeys = currentMessages
+      .filter((message) => message.type === 'image' && !message.isWithdrawn)
+      .map((message) => getMediaKey(message))
+      .filter(Boolean);
+    const visibleVideoKeys = currentMessages
+      .filter((message) => message.type === 'video' && !message.isWithdrawn && visibleVideoMessageIds[message.id])
+      .map((message) => getMediaKey(message))
+      .filter(Boolean);
+
+    const mediaObjectKeys = [...new Set([...imageKeys, ...visibleVideoKeys])];
+    const pendingKeys = mediaObjectKeys.filter(
       (key) => !signedMediaUrls[key] && !failedMediaKeysRef.current.has(key)
     );
     if (pendingKeys.length === 0) return;
@@ -332,11 +454,70 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn, user?.id, currentMessages, signedMediaUrls, signMediaDownload]);
+  }, [isLoggedIn, user?.id, currentMessages, visibleVideoMessageIds, signedMediaUrls, signMediaDownload]);
+
+  // track which video messages are in viewport
+  useEffect(() => {
+    if (!currentConversation || typeof window === 'undefined') return undefined;
+
+    const handleVisibility = (entries) => {
+      setVisibleVideoMessageIds((prev) => {
+        let changed = false;
+        const visibleVideoMessageIds = { ...prev };
+        entries.forEach((entry) => {
+          const messageId = entry.target.getAttribute('data-message-id');
+          if (!messageId) return;
+          // if the video is in viewport, set the visible video message id to true
+          const isVisible = entry.isIntersecting; // true if the video is in viewport, false if it is not
+          if (visibleVideoMessageIds[messageId] !== isVisible) { // if the visible video message id is not the same as the next value, set the visible video message id to the next value
+            visibleVideoMessageIds[messageId] = isVisible;
+            changed = true;
+          }
+        });
+        return changed ? visibleVideoMessageIds : prev;
+      });
+    };
+
+    // create a new intersection observer to track which video messages are in viewport
+    const observer = new IntersectionObserver(handleVisibility, {
+      root: null,
+      threshold: 0.2
+    });
+    videoVisibilityObserverRef.current = observer;
+    videoContainerByMessageIdRef.current.forEach((element) => observer.observe(element));
+
+    // disconnect the observer when the component unmounts
+    return () => {
+      observer.disconnect();
+      if (videoVisibilityObserverRef.current === observer) {
+        videoVisibilityObserverRef.current = null;
+      }
+    };
+  }, [currentConversation, currentMessages]);
 
   useEffect(() => {
     pendingFilesRef.current = pendingFiles;
   }, [pendingFiles]);
+
+  useEffect(() => {
+    if (!withdrawContextMenu) return undefined;
+    const handleGlobalDismiss = () => setWithdrawContextMenu(null);
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setWithdrawContextMenu(null);
+      }
+    };
+    window.addEventListener('click', handleGlobalDismiss);
+    window.addEventListener('scroll', handleGlobalDismiss, true);
+    window.addEventListener('resize', handleGlobalDismiss);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('click', handleGlobalDismiss);
+      window.removeEventListener('scroll', handleGlobalDismiss, true);
+      window.removeEventListener('resize', handleGlobalDismiss);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [withdrawContextMenu]);
 
   // cleanup pending files when component unmounts
   useEffect(() => () => {
@@ -414,13 +595,20 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Container: Scrollable area displaying all messages in the conv */}
-            <div className="chat-messages">
+            <div ref={chatMessagesContainerRef} className="chat-messages">
               {/* Render each message in the current conv */}
               {currentMessages.map((message, index) => {
-                const mediaKey = message.mediaObjectKey || message.mediaUrl || null;
+                const mediaKey = getMediaKey(message);
                 const mediaDownloadUrl = mediaKey ? signedMediaUrls[mediaKey] : null;
+                // check if the video is in viewport
+                const isVisibleVideo = Boolean(message.type === 'video' && visibleVideoMessageIds[message.id]);
+                const isWithdrawn = Boolean(message.isWithdrawn);
                 return (
-                <div key={message.id} className="message-bubble">
+                <div
+                  key={message.id}
+                  className="message-bubble"
+                  onContextMenu={(e) => handleMessageContextMenu(e, message)}
+                >
                   {/* 
                     Timestamp Display Logic:
                     Show timestamp only if it's the first message OR 
@@ -437,7 +625,7 @@ export default function ChatPage() {
                   </div>
                   <div className="message-content">
                     {/* Optional icon displayed on the left side of the message (e.g., notification bell, money bag) */}
-                    {message.type !== 'text' && (
+                    {!isWithdrawn && message.type !== 'text' && (
                       <div className="message-icon">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           {message.type === 'image' ? (
@@ -464,29 +652,49 @@ export default function ChatPage() {
                         Note: Using dangerouslySetInnerHTML requires sanitization in production
                       */}
                       <div className="message-title">
-                        {message.type === 'text' ? (message.content || '') : ''}
+                        {isWithdrawn ? 'Message withdrawn' : (message.type === 'text' ? (message.content || '') : '')}
                       </div>
                       
                       {/* Optional description text providing additional context */}
-                      {message.type === 'image' && mediaDownloadUrl && (
+                      {!isWithdrawn && message.type === 'image' && mediaDownloadUrl && (
                         <img
                           className="message-media message-media-image"
                           src={mediaDownloadUrl}
                           alt="Shared image"
                           loading="lazy"
-                          onLoad={handleMediaRendered}
+                          onLoad={() => handleMediaRendered(message.id)}
                         />
                       )}
-                      {message.type === 'video' && mediaDownloadUrl && (
-                        <video
-                          className="message-media message-media-video"
-                          controls
-                          preload="metadata"
-                          src={mediaDownloadUrl}
-                          onLoadedData={handleMediaRendered}
-                        />
+                      {!isWithdrawn && message.type === 'video' && mediaDownloadUrl && (
+                        <div
+                          className="message-media-video-shell"
+                          data-message-id={message.id}
+                          ref={bindVideoContainerRef(message.id)}
+                        >
+                          <video
+                            className="message-media message-media-video"
+                            controls
+                            preload="none"
+                            src={isVisibleVideo ? mediaDownloadUrl : undefined}
+                            ref={bindVideoNodeRef(message.id)}
+                            onLoadedData={() => handleMediaRendered(message.id)}
+                          />
+                        </div>
                       )}
-                      {mediaKey && !mediaDownloadUrl && (
+                      {!isWithdrawn && mediaKey && message.type === 'video' && !isVisibleVideo && (
+                        // if the video is not in viewport, show a placeholder
+                        <div
+                          className="message-description"
+                          data-message-id={message.id}
+                          ref={bindVideoContainerRef(message.id)}
+                        >
+                          Video will load when visible.
+                        </div>
+                      )}
+                      {!isWithdrawn && mediaKey && !mediaDownloadUrl && message.type !== 'video' && (
+                        <div className="message-description">Loading media...</div>
+                      )}
+                      {!isWithdrawn && mediaKey && message.type === 'video' && isVisibleVideo && !mediaDownloadUrl && (
                         <div className="message-description">Loading media...</div>
                       )}
                       
@@ -495,8 +703,23 @@ export default function ChatPage() {
                   </div>
                 </div>
               )})}
-              <div ref={messagesEndRef} />
             </div>
+            {withdrawContextMenu && (
+              <div
+                className="message-context-menu"
+                style={{ top: `${withdrawContextMenu.y}px`, left: `${withdrawContextMenu.x}px` }}
+                onClick={(e) => e.stopPropagation()}
+                role="menu"
+              >
+                <button
+                  type="button"
+                  className="message-context-menu-item"
+                  onClick={handleWithdrawFromContextMenu}
+                >
+                  Withdraw
+                </button>
+              </div>
+            )}
 
             {/* Composer Row: lets users type and send messages (enabled for chat convs only) */}
             <form

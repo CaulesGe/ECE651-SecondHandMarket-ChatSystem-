@@ -102,6 +102,40 @@ export function ChatProvider({ children }) {
     await loadConversations();
   }, [isLoggedIn, user, generateClientMessageId, loadMessages, loadConversations]);
 
+  // Withdraw own message (<= 2 minutes) via WebSocket when connected, otherwise HTTP.
+  const withdrawMessageRealtime = useCallback(async ({ messageId, conversationId }) => {
+    if (!isLoggedIn || !user?.id) throw new Error('Not authenticated');
+    if (!messageId || !conversationId) throw new Error('messageId and conversationId are required');
+
+    const socket = socketRef.current;
+    let updatedMessage = null;
+    if (socket?.connected) {
+      await new Promise((resolve, reject) => {
+        socket.emit('withdraw_message', { messageId }, (ack) => {
+          if (ack?.error) {
+            reject(new Error(ack.error));
+            return;
+          }
+          resolve(ack);
+        });
+      });
+      const latest = await loadMessages(conversationId);
+      updatedMessage = latest.find((item) => item.id === messageId) || null;
+    } else {
+      const data = await api.withdrawMessage(messageId, user);
+      updatedMessage = data.message || null;
+    }
+
+    if (updatedMessage?.conversationId) {
+      setMessagesByConversation((prev) => ({
+        ...prev,
+        [updatedMessage.conversationId]: mergeMessages(prev[updatedMessage.conversationId], [updatedMessage])
+      }));
+    }
+    await loadConversations();
+    return updatedMessage;
+  }, [isLoggedIn, user, loadMessages, loadConversations, mergeMessages]);
+
   // Upload media file to S3 via presigned URL and return objectKey for message payload.
   const uploadMediaForConversation = useCallback(async (conversationId, file) => {
     if (!isLoggedIn || !user?.id) throw new Error('Not authenticated');
@@ -242,6 +276,7 @@ export function ChatProvider({ children }) {
       loadMessages,
       createConversation,
       sendMessageRealtime,
+      withdrawMessageRealtime,
       uploadMediaForConversation,
       signMediaDownload,
       markAsRead,

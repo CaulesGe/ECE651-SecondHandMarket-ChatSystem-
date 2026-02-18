@@ -88,6 +88,8 @@ model Message {
   type            String
   content         String?
   mediaObjectKey  String?
+  isWithdrawn     Boolean      @default(false)
+  withdrawnAt     DateTime?
   clientMessageId String
   createdAt       DateTime     @default(now())
   conversation    Conversation @relation(fields: [conversationId], references: [id])

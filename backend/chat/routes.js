@@ -10,7 +10,7 @@ import {
   getUserConversations,
   markConversationRead
 } from "./services/conversation.js";
-import { sendMessage, getMessages } from "./services/message.js";
+import { sendMessage, getMessages, withdrawMessage } from "./services/message.js";
 
 const prisma = new PrismaClient();
 const CHAT_MEDIA_MAX_SIZE_BYTES = 100 * 1024 * 1024;
@@ -228,6 +228,19 @@ export const createChatRouter = () => {
       return res.json({ items });
     } catch (error) {
       return res.status(400).json({ message: error.message || "Failed to load messages" });
+    }
+  });
+
+  // POST /chat/messages/:id/withdraw - withdraw own message within 2 minutes.
+  router.post("/messages/:id/withdraw", async (req, res) => {
+    try {
+      const updatedMessage = await withdrawMessage({
+        messageId: req.params.id,
+        userId: req.user.id
+      });
+      return res.json({ message: updatedMessage });
+    } catch (error) {
+      return res.status(400).json({ message: error.message || "Failed to withdraw message" });
     }
   });
 

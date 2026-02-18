@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 // Instantiate Prisma once for the chat service module.
 const prisma = new PrismaClient();
+const WITHDRAW_WINDOW_MS = 2 * 60 * 1000;
 
 // Supported message types.
 const ALLOWED_TYPES = new Set(["text", "image", "video"]);
@@ -86,6 +87,54 @@ export const sendMessage = async ({
     if (existing) return existing;
     throw error;
   }
+};
+
+// Withdraw a sent message if sender requests within the allowed time window.
+export const withdrawMessage = async ({ messageId, userId }) => {
+  if (!messageId || !userId) {
+    throw new Error("Missing messageId or userId");
+  }
+
+  const existing = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: {
+      id: true,
+      conversationId: true,
+      senderId: true,
+      createdAt: true,
+      isWithdrawn: true
+    }
+  });
+
+  if (!existing) {
+    throw new Error("Message not found");
+  }
+  if (existing.senderId !== userId) {
+    throw new Error("Only the sender can withdraw this message");
+  }
+  if (existing.isWithdrawn) {
+    throw new Error("Message already withdrawn");
+  }
+  if (Date.now() - new Date(existing.createdAt).getTime() > WITHDRAW_WINDOW_MS) {
+    throw new Error("Withdrawal window expired (2 minutes)");
+  }
+
+  const updated = await prisma.message.update({
+    where: { id: messageId },
+    data: {
+      isWithdrawn: true,
+      withdrawnAt: new Date(),
+      content: null,
+      mediaObjectKey: null
+    }
+  });
+
+  await prisma.conversation.update({
+    where: { id: existing.conversationId },
+    data: { updatedAt: new Date() }
+  });
+
+  return updated;
 };
 
 // Fetch/sync messages for a conversation, optionally after a cursor.
