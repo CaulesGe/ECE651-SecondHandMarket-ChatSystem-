@@ -2,7 +2,7 @@
 import { Server } from "socket.io";
 import { PrismaClient } from "@prisma/client";
 import { authenticateSocket } from "./auth.js";
-import { sendMessage } from "./services/message.js";
+import { sendMessage, withdrawMessage } from "./services/message.js";
 
 // Track connected sockets per user for routing.
 const userSockets = new Map();
@@ -95,6 +95,33 @@ export const initChatSocket = (httpServer) => {
       } catch (error) {
         if (typeof callback === "function") {
           callback({ error: error.message || "Failed to send message" });
+        }
+      }
+    });
+
+    // Handle withdraw_message events from sender (2-minute window enforcement is in service).
+    socket.on("withdraw_message", async (payload = {}, callback) => {
+      try {
+        const message = await withdrawMessage({
+          messageId: payload.messageId,
+          userId
+        });
+
+        const participants = await prisma.conversationParticipant.findMany({
+          where: { conversationId: message.conversationId },
+          select: { userId: true }
+        });
+        const targetUserIds = new Set(participants.map((p) => p.userId));
+        targetUserIds.forEach((targetUserId) => {
+          emitToUser(targetUserId, "message", { message });
+        });
+
+        if (typeof callback === "function") {
+          callback({ messageId: message.id });
+        }
+      } catch (error) {
+        if (typeof callback === "function") {
+          callback({ error: error.message || "Failed to withdraw message" });
         }
       }
     });

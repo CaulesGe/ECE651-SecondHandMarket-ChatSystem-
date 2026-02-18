@@ -217,6 +217,19 @@ export const api = {
     return res.json();
   },
 
+  async withdrawMessage(messageId, user) {
+    if (!messageId) throw new Error('messageId is required');
+    const res = await fetch(`${CHAT_BASE}/messages/${messageId}/withdraw`, {
+      method: 'POST',
+      headers: getAuthHeaders(user)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || 'Failed to withdraw message');
+    }
+    return res.json();
+  },
+
   async markAsRead(conversationId, messageId, user) {
     const res = await fetch(`${CHAT_BASE}/conversations/${conversationId}/read`, {
       method: 'POST',

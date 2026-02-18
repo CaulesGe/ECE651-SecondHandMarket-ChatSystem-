@@ -1983,6 +1983,38 @@ a:hover {
   font-size: 12px;
 }
 
+.message-context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 140px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+}
+
+.message-context-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.message-context-menu-item:hover {
+  background: var(--danger-light);
+}
+
+.message-context-menu-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
 /* Responsive Chat Page */
 @media (max-width: 1024px) {
   .chat-container {
