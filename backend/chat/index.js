@@ -5,7 +5,7 @@
 // Import chat HTTP routes (to be implemented in a later step).
 import { createChatRouter } from "./routes.js";
 // Import chat WebSocket setup (to be implemented in a later step).
-import { initChatSocket } from "./websocket.js";
+import { initChatSocket, tryAttachRedisAdapter } from "./websocket.js";
 
 // Mount the chat service into the main Express app and HTTP server.
 export const mountChatService = (app, httpServer) => {
@@ -14,5 +14,9 @@ export const mountChatService = (app, httpServer) => {
   app.use("/api/chat", chatRouter);
 
   // Initialize Socket.IO for real-time chat delivery.
-  initChatSocket(httpServer);
+  const io = initChatSocket(httpServer);
+  return {
+    io,
+    tryAttachRedisAdapter: () => tryAttachRedisAdapter(io)
+  };
 };

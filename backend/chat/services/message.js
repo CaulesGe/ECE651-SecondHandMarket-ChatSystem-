@@ -1,6 +1,14 @@
 // Message service: validation, persistence, and retrieval.
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuidv4 } from "uuid";
+import {
+  buildMessagesCacheKey,
+  CHAT_MESSAGES_CACHE_TTL_SECONDS,
+  getCachedJson,
+  setCachedJson,
+  invalidateConversationCachesForUsers,
+  invalidateMessageCachesForConversation
+} from "../cache.js";
 
 // Instantiate Prisma once for the chat service module.
 const prisma = new PrismaClient();
@@ -11,6 +19,21 @@ const ALLOWED_TYPES = new Set(["text", "image", "video"]);
 
 // Basic object-key validation for media messages.
 const isValidObjectKey = (value) => typeof value === "string" && value.trim().length > 0;
+
+// invalidate the cached conversations and messages for the conversation because a new message was sent or a message was withdrawn
+const invalidateConversationAndMessageCaches = async (conversationId) => {
+  if (!conversationId) return;
+  // get the participants of the conversation
+  const participants = await prisma.conversationParticipant.findMany({
+    where: { conversationId },
+    select: { userId: true }
+  });
+  const participantUserIds = participants.map((participant) => participant.userId);
+  await Promise.all([
+    invalidateConversationCachesForUsers(participantUserIds),
+    invalidateMessageCachesForConversation(conversationId)
+  ]);
+};
 
 // Validate message payload and return a normalized shape.
 export const validateMessage = ({ type, content, mediaObjectKey }) => {
@@ -77,6 +100,8 @@ export const sendMessage = async ({
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     });
+    // invalidate the cached conversations and messages for the conversation because a new message was sent
+    await invalidateConversationAndMessageCaches(conversationId);
 
     return message;
   } catch (error) {
@@ -133,6 +158,8 @@ export const withdrawMessage = async ({ messageId, userId }) => {
     where: { id: existing.conversationId },
     data: { updatedAt: new Date() }
   });
+  // invalidate the cached conversations and messages for the conversation because a message was withdrawn
+  await invalidateConversationAndMessageCaches(existing.conversationId);
 
   return updated;
 };
@@ -144,7 +171,8 @@ export const withdrawMessage = async ({ messageId, userId }) => {
 export const getMessages = async ({
   userId,
   conversationId,
-  afterMessageId,
+  afterMessageId, // message id to start from
+  beforeMessageId, // message id to page older from
   limit = 100
 }) => {
   if (!userId || !conversationId) {
@@ -157,6 +185,10 @@ export const getMessages = async ({
   });
   if (!participant) {
     throw new Error("User is not a participant of this conversation");
+  }
+
+  if (afterMessageId && beforeMessageId) {
+    throw new Error("Use either afterMessageId or beforeMessageId, not both");
   }
 
   // Resolve cursor timestamp if a cursor message id is provided.
@@ -175,17 +207,57 @@ export const getMessages = async ({
       afterCreatedAt = cursorMessage.createdAt;
     }
   }
+  let beforeCreatedAt = null;
+  if (beforeMessageId) {
+    const cursorMessage = await prisma.message.findUnique({
+      where: { id: beforeMessageId },
+      select: { createdAt: true, conversationId: true }
+    });
 
-  // Build sync filter for messages after cursor.
+    if (cursorMessage) {
+      if (cursorMessage.conversationId !== conversationId) {
+        throw new Error("Cursor does not belong to the conversation");
+      }
+      beforeCreatedAt = cursorMessage.createdAt;
+    }
+  }
+
+  const normalizedLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const cacheKey = buildMessagesCacheKey({
+    conversationId,
+    afterMessageId,
+    beforeMessageId,
+    limit: normalizedLimit
+  });
+  const cached = await getCachedJson(cacheKey);
+  if (cached) return cached;
+
+  // Build sync filter for messages after/before cursor.
   const where = { conversationId };
   if (afterCreatedAt) {
     where.createdAt = { gt: afterCreatedAt };
+  } else if (beforeCreatedAt) {
+    where.createdAt = { lt: beforeCreatedAt };
   }
 
-  // Return messages in ascending order for deterministic replay.
-  return prisma.message.findMany({
-    where,
-    orderBy: { createdAt: "asc" },
-    take: Math.min(Math.max(Number(limit) || 100, 1), 500)
-  });
+  let items = [];
+  if (afterCreatedAt) {
+    // Incremental sync for new messages.
+    items = await prisma.message.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      take: normalizedLimit
+    });
+  } else {
+    // Initial load and "load older" both fetch from newest side then reverse for UI replay order.
+    items = await prisma.message.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: normalizedLimit
+    });
+    items.reverse();
+  }
+  // set the cached messages for the conversation in the Redis
+  await setCachedJson(cacheKey, items, CHAT_MESSAGES_CACHE_TTL_SECONDS);
+  return items;
 };

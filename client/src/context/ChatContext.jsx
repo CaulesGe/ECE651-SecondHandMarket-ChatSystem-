@@ -12,7 +12,10 @@ export function ChatProvider({ children }) {
   const [messagesByConversation, setMessagesByConversation] = useState({});
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [presenceByUserId, setPresenceByUserId] = useState({});
+  const [typingByConversation, setTypingByConversation] = useState({});
   const socketRef = useRef(null);
+  const typingExpiryTimersRef = useRef(new Map()); // used to clear the typing state for the conversation and user
   const socketServerUrl = import.meta.env.DEV ? 'http://localhost:3000' : undefined;
 
    // Load all conversations for the authenticated user.
@@ -56,10 +59,17 @@ export function ChatProvider({ children }) {
   }, []);
 
 
-  // Load messages for one conversation (optionally after cursor).
-  const loadMessages = useCallback(async (conversationId, cursorMessageId = '') => {
+  // Load messages for one conversation (supports incremental after-cursor and older-page before-cursor).
+  const loadMessages = useCallback(async (conversationId, options = {}) => {
     if (!isLoggedIn || !user?.id || !conversationId) return [];
-    const data = await api.getMessages(conversationId, cursorMessageId, user);
+    const {
+      afterMessageId = '',
+      beforeMessageId = '',
+      limit = 100
+    } = typeof options === 'string'
+      ? { afterMessageId: options }
+      : (options || {});
+    const data = await api.getMessages(conversationId, afterMessageId, user, limit, beforeMessageId);
     const items = data.items || [];
     // update the conversation with the new messages
     setMessagesByConversation((prev) => ({
@@ -191,11 +201,59 @@ export function ChatProvider({ children }) {
     messagesByConversation[conversationId] || []
   ), [messagesByConversation]);
 
+  // request the presence and typing state for the conversation, used in ChatPage.jsx
+  const requestConversationPresence = useCallback(async (conversationId) => {
+    if (!conversationId) return null;
+    const socket = socketRef.current;
+    if (!socket?.connected) return null;
+    const snapshot = await new Promise((resolve) => {
+      socket.emit('presence_subscribe', { conversationId }, (ack) => resolve(ack || null));
+    });
+    if (!snapshot || snapshot.error) return null;
+
+    // update the presence for the users in the conversation
+    if (snapshot.presenceByUserId) {
+      setPresenceByUserId((prev) => ({ ...prev, ...snapshot.presenceByUserId }));
+    }
+    if (Array.isArray(snapshot.typingUserIds)) {
+      // set the typing state for the conversation
+      setTypingByConversation((prev) => ({
+        ...prev,
+        [conversationId]: Object.fromEntries(snapshot.typingUserIds.map((id) => [id, true]))
+      }));
+    }
+    return snapshot;
+  }, []);
+
+  // set the typing state for the user in the conversation
+  const setTypingState = useCallback(async (conversationId, isTyping) => {
+    if (!conversationId) return;
+    const socket = socketRef.current;
+    if (!socket?.connected) return;
+    await new Promise((resolve) => {
+      socket.emit('typing', { conversationId, isTyping }, () => resolve());
+    });
+  }, []);
+
+  // get the presence for the user, update when presence_changed event is received
+  const getPresenceForUser = useCallback((userId) => Boolean(presenceByUserId[userId]), [presenceByUserId]);
+
+  // get the typing users for the conversation, update when typing_changed event is received
+  const getTypingUsersForConversation = useCallback((conversationId) => (
+    Object.entries(typingByConversation[conversationId] || {})
+      .filter(([, isTyping]) => Boolean(isTyping))
+      .map(([userId]) => userId)
+  ), [typingByConversation]);
+
   // Establish Socket.IO connection and reconnect sync.
   useEffect(() => {
     if (!isLoggedIn || !user?.id) {
       setConversations([]);
       setMessagesByConversation({});
+      setPresenceByUserId({});
+      setTypingByConversation({});
+      typingExpiryTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+      typingExpiryTimersRef.current.clear();
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -206,7 +264,7 @@ export function ChatProvider({ children }) {
 
     // Initial conversation hydration.
     loadConversations().catch(() => {});
-
+    // create socket when user is logged in and connected to the server
     const socket = io(socketServerUrl, {
       path: '/socket.io',
       auth: {
@@ -246,6 +304,46 @@ export function ChatProvider({ children }) {
       loadConversations().catch(() => {});
     });
 
+    socket.on('presence_changed', ({ userId: changedUserId, isOnline }) => {
+      if (!changedUserId) return;
+      setPresenceByUserId((prev) => ({ ...prev, [changedUserId]: Boolean(isOnline) }));
+    });
+
+    socket.on('typing_changed', ({ conversationId, userId: typingUserId, isTyping, expiresInSeconds }) => {
+      if (!conversationId || !typingUserId) return;
+      const timerKey = `${conversationId}:${typingUserId}`;
+      const existingTimer = typingExpiryTimersRef.current.get(timerKey);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+        typingExpiryTimersRef.current.delete(timerKey);
+      }
+
+      // update the typing state for the conversation
+      setTypingByConversation((prev) => ({
+        ...prev,
+        [conversationId]: {
+          ...(prev[conversationId] || {}),
+          [typingUserId]: Boolean(isTyping)
+        }
+      }));
+
+      if (isTyping) {
+        // set the timeout to clear the typing state for the conversation and user
+        const ttlMs = Math.max(Number(expiresInSeconds || 0) * 1000, 1000);
+        const timeoutId = setTimeout(() => {
+          setTypingByConversation((prev) => ({
+            ...prev,
+            [conversationId]: {
+              ...(prev[conversationId] || {}),
+              [typingUserId]: false
+            }
+          }));
+          typingExpiryTimersRef.current.delete(timerKey);
+        }, ttlMs + 200);
+        typingExpiryTimersRef.current.set(timerKey, timeoutId);
+      }
+    });
+
     socket.io.on('reconnect', async () => {
       // Sync missed messages on reconnect for all known conversations.
       const currentConversations = await loadConversations().catch(() => []);
@@ -255,6 +353,8 @@ export function ChatProvider({ children }) {
     });
 
     return () => {
+      typingExpiryTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+      typingExpiryTimersRef.current.clear();
       socket.disconnect();
       socketRef.current = null;
       setSocketConnected(false);
@@ -280,7 +380,11 @@ export function ChatProvider({ children }) {
       uploadMediaForConversation,
       signMediaDownload,
       markAsRead,
-      getMessagesForConversation
+      getMessagesForConversation,
+      requestConversationPresence,
+      setTypingState,
+      getPresenceForUser,
+      getTypingUsersForConversation
     }}>
       {children}
     </ChatContext.Provider>

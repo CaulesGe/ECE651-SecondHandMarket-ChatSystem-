@@ -1707,6 +1707,13 @@ a:hover {
   margin: 0;
 }
 
+.chat-presence-status {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 12px;
+}
+
 .chat-header-actions {
   display: flex;
   gap: 8px;

@@ -218,11 +218,12 @@ export const createChatRouter = () => {
   // GET /chat/messages - sync messages after a cursor.
   router.get("/messages", async (req, res) => {
     try {
-      const { conversationId, afterMessageId, limit } = req.query || {};
+      const { conversationId, afterMessageId, beforeMessageId, limit } = req.query || {};
       const items = await getMessages({
         userId: req.user.id,
         conversationId,
         afterMessageId,
+        beforeMessageId,
         limit: limit ? Number(limit) : undefined
       });
       return res.json({ items });
