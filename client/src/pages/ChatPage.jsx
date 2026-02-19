@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
+const MESSAGE_PAGE_SIZE = 100;
+
 export default function ChatPage() {
   const { user, isLoggedIn } = useAuth();
   const {
@@ -18,7 +20,11 @@ export default function ChatPage() {
     uploadMediaForConversation,
     signMediaDownload,
     markAsRead,
-    getMessagesForConversation
+    getMessagesForConversation,
+    requestConversationPresence,
+    setTypingState,
+    getPresenceForUser,
+    getTypingUsersForConversation
   } = useChat();
   const navigate = useNavigate();
   const [selectedChat, setSelectedChat] = useState('');
@@ -26,6 +32,8 @@ export default function ChatPage() {
   const [composerError, setComposerError] = useState('');
   const [dragOverComposer, setDragOverComposer] = useState(false);
   const [withdrawContextMenu, setWithdrawContextMenu] = useState(null);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreOlderByConversation, setHasMoreOlderByConversation] = useState({});
   
   // refs for the file input, media upload in flight, queued media upload, and failed media keys
   const fileInputRef = useRef(null);
@@ -42,6 +50,8 @@ export default function ChatPage() {
   const pendingFilesRef = useRef([]);
   // ref for the chat messages container
   const chatMessagesContainerRef = useRef(null);
+  const typingIdleTimeoutRef = useRef(null);
+  const activeTypingConversationIdRef = useRef(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -72,7 +82,12 @@ export default function ChatPage() {
   // Load messages when user switches conversation and mark latest as read.
   useEffect(() => {
     if (!selectedChat) return;
-    loadMessages(selectedChat).then((items) => {
+    setLoadingOlderMessages(false);
+    loadMessages(selectedChat, { limit: MESSAGE_PAGE_SIZE }).then((items) => {
+      setHasMoreOlderByConversation((prev) => ({
+        ...prev,
+        [selectedChat]: items.length >= MESSAGE_PAGE_SIZE
+      }));
       const latest = items[items.length - 1];
       markAsRead(selectedChat, latest?.id || null).catch(() => {});
       // Ensure selected conversation opens at newest message.
@@ -86,8 +101,19 @@ export default function ChatPage() {
 
   const currentConversation = conversations.find((t) => t.id === selectedChat) || null;
   const currentMessages = currentConversation ? getMessagesForConversation(currentConversation.id) : [];
+  const hasMoreOlderMessages = currentConversation
+    ? (hasMoreOlderByConversation[currentConversation.id] ?? true)
+    : false;
   const canSendMessage = Boolean(currentConversation);
   const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
+  const currentOtherParticipant = currentConversation?.participants?.find((participant) => participant.userId !== user?.id)?.user || null;
+  const isOtherParticipantOnline = currentOtherParticipant ? getPresenceForUser(currentOtherParticipant.id) : false;
+  // get the typing users for the conversation, update when typing_changed event is received
+  const typingUserNames = currentConversation
+    ? getTypingUsersForConversation(currentConversation.id)
+      .filter((typingUserId) => typingUserId !== user?.id)
+      .map((typingUserId) => currentConversation.participants?.find((participant) => participant.userId === typingUserId)?.user?.name || typingUserId)
+    : [];
 
   // scroll to the bottom of the chat messages container
   const scrollToBottom = (behavior = 'smooth') => {
@@ -100,6 +126,35 @@ export default function ChatPage() {
     // Only auto-scroll for the newest message to avoid jump when users interact with older media.
     if (!messageId || messageId !== lastMessageId) return;
     requestAnimationFrame(() => scrollToBottom('smooth'));
+  };
+
+  const handleMessagesScroll = async () => {
+    const container = chatMessagesContainerRef.current;
+    if (!container || !currentConversation || loadingOlderMessages || !hasMoreOlderMessages) return;
+    if (container.scrollTop > 40) return;
+
+    const oldestLoadedMessageId = currentMessages[0]?.id;
+    if (!oldestLoadedMessageId) return;
+
+    const previousScrollHeight = container.scrollHeight;
+    const previousScrollTop = container.scrollTop;
+    setLoadingOlderMessages(true);
+    try {
+      const olderItems = await loadMessages(currentConversation.id, {
+        beforeMessageId: oldestLoadedMessageId,
+        limit: MESSAGE_PAGE_SIZE
+      });
+      setHasMoreOlderByConversation((prev) => ({
+        ...prev,
+        [currentConversation.id]: olderItems.length >= MESSAGE_PAGE_SIZE
+      }));
+      requestAnimationFrame(() => {
+        const nextScrollHeight = container.scrollHeight;
+        container.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight);
+      });
+    } finally {
+      setLoadingOlderMessages(false);
+    }
   };
 
   const formatTimeHHMM = (dateLike) => {
@@ -269,6 +324,16 @@ export default function ChatPage() {
     if (!text && filesToUpload.length === 0) return;
 
     setComposerError('');
+    // clear the active typing state for the conversation
+    if (activeTypingConversationIdRef.current) {
+      setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
+      activeTypingConversationIdRef.current = null;
+    }
+    // clear the timeout to clear the typing state for the conversation and user
+    if (typingIdleTimeoutRef.current) {
+      clearTimeout(typingIdleTimeoutRef.current);
+      typingIdleTimeoutRef.current = null;
+    }
     const recipientId = currentConversation.participants?.find((p) => p.userId !== user?.id)?.userId;
 
     try {
@@ -376,6 +441,59 @@ export default function ChatPage() {
     const latest = currentMessages[currentMessages.length - 1];
     markAsRead(selectedChat, latest?.id || null).catch(() => {});
   }, [selectedChat, lastMessageId]);
+
+  // request a presence/typing snapshot when selected chat or socket connectivity changes
+  useEffect(() => {
+    if (!selectedChat || !socketConnected) return;
+    requestConversationPresence(selectedChat).catch(() => {});
+  }, [selectedChat, socketConnected, requestConversationPresence]);
+
+  useEffect(() => {
+    if (!selectedChat || !socketConnected) return undefined;
+    // request a presence/typing snapshot when the user comes back to the page
+    const handleFocus = () => {
+      requestConversationPresence(selectedChat).catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [selectedChat, socketConnected, requestConversationPresence]);
+
+  // set the typing state for the conversation and user when the user starts typing
+  useEffect(() => {
+    if (!canSendMessage || !selectedChat) return undefined;
+
+    const hasText = Boolean(draft.trim());
+    if (hasText) {
+      // if the active typing conversation id is not the selected chat
+      if (activeTypingConversationIdRef.current !== selectedChat) {
+        // clear the active typing state for the old conversation
+        if (activeTypingConversationIdRef.current) {
+          setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
+        }
+        // set the active typing conversation id to the selected chat
+        activeTypingConversationIdRef.current = selectedChat;
+        setTypingState(selectedChat, true).catch(() => {});
+      }
+      // set the timeout to clear the typing state for the conversation and user
+      if (typingIdleTimeoutRef.current) clearTimeout(typingIdleTimeoutRef.current);
+      typingIdleTimeoutRef.current = setTimeout(() => {
+        if (!activeTypingConversationIdRef.current) return;
+        setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
+        activeTypingConversationIdRef.current = null;
+      }, 1600);
+      return undefined;
+    }
+    // clear the active typing state for the conversation
+    if (activeTypingConversationIdRef.current) {
+      setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
+      activeTypingConversationIdRef.current = null;
+    }
+    if (typingIdleTimeoutRef.current) {
+      clearTimeout(typingIdleTimeoutRef.current);
+      typingIdleTimeoutRef.current = null;
+    }
+    return undefined;
+  }, [draft, selectedChat, canSendMessage, setTypingState]);
 
   // clear the visible video message ids when the selected chat changes
   useEffect(() => {
@@ -521,8 +639,16 @@ export default function ChatPage() {
 
   // cleanup pending files when component unmounts
   useEffect(() => () => {
+    if (typingIdleTimeoutRef.current) {
+      clearTimeout(typingIdleTimeoutRef.current);
+      typingIdleTimeoutRef.current = null;
+    }
+    if (activeTypingConversationIdRef.current) {
+      setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
+      activeTypingConversationIdRef.current = null;
+    }
     pendingFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-  }, []);
+  }, [setTypingState]);
   
   return (
     <>
@@ -574,8 +700,15 @@ export default function ChatPage() {
             {/* Chat Header: Displays current conv title and action buttons */}
             <div className="chat-header">
               <h2 className="chat-header-title">
-                {currentConversation ? `Conversation ${currentConversation.id.slice(0, 6)}` : 'Messages'}
+                {currentConversation ? (currentOtherParticipant?.name || `Conversation ${currentConversation.id.slice(0, 6)}`) : 'Messages'}
               </h2>
+              {currentConversation && currentOtherParticipant && (
+                <div className="chat-presence-status" aria-live="polite">
+                  {typingUserNames.length > 0
+                    ? `${typingUserNames.join(', ')} ${typingUserNames.length > 1 ? 'are' : 'is'} typing...`
+                    : (isOtherParticipantOnline ? 'Online' : 'Offline')}
+                </div>
+              )}
               {/* Action buttons for conv management (archive, mark as read, etc.) */}
               <div className="chat-header-actions">
                 <button className="chat-header-btn" aria-label="Archive">
@@ -595,7 +728,13 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Container: Scrollable area displaying all messages in the conv */}
-            <div ref={chatMessagesContainerRef} className="chat-messages">
+            <div ref={chatMessagesContainerRef} className="chat-messages" onScroll={handleMessagesScroll}>
+              {loadingOlderMessages && (
+                <div className="chat-item-time">Loading older messages...</div>
+              )}
+              {!loadingOlderMessages && !hasMoreOlderMessages && currentMessages.length > 0 && (
+                <div className="chat-item-time">No older messages.</div>
+              )}
               {/* Render each message in the current conv */}
               {currentMessages.map((message, index) => {
                 const mediaKey = getMediaKey(message);

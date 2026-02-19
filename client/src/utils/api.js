@@ -201,10 +201,11 @@ export const api = {
     return res.json();
   },
 
-  async getMessages(conversationId, afterMessageId = '', user, limit = 100) {
+  async getMessages(conversationId, afterMessageId = '', user, limit = 100, beforeMessageId = '') {
     const params = new URLSearchParams();
     if (conversationId) params.append('conversationId', conversationId);
     if (afterMessageId) params.append('afterMessageId', afterMessageId);
+    if (beforeMessageId) params.append('beforeMessageId', beforeMessageId);
     if (limit) params.append('limit', String(limit));
 
     const res = await fetch(`${CHAT_BASE}/messages?${params}`, {

@@ -17,7 +17,7 @@ todos:
       - redis-foundation
   - id: redis-presence-typing
     content: Add Redis-backed presence and typing indicator flows
-    status: pending
+    status: completed
     dependencies:
       - redis-socket-adapter
   - id: redis-observability

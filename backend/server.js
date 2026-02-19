@@ -8,6 +8,7 @@ import { mountChatService } from "./chat/index.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { isEmailConfigured, sendVerificationEmail } from "./email.js";
+import { closeRedis, initRedis } from "./utils/redis.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -498,7 +499,7 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
 
 // Catch-all route: serve React app for any non-API routes (client-side routing)
 // Mount chat routes and real-time socket service.
-mountChatService(app, httpServer);
+const chatService = mountChatService(app, httpServer);
 
 if (process.env.NODE_ENV === "production") {
   app.get("*", (req, res) => {
@@ -507,11 +508,30 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const start = async () => {
-  await prisma.$connect();
-  await seedIfEmpty();
-  httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-  });
+  try {
+    await prisma.$connect();
+    await initRedis();
+    await chatService?.tryAttachRedisAdapter?.();
+    await seedIfEmpty();
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error?.message || error);
+    process.exit(1);
+  }
 };
 
 start();
+
+const shutdown = async () => {
+  try {
+    await closeRedis();
+    await prisma.$disconnect();
+  } finally {
+    process.exit(0);
+  }
+};
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

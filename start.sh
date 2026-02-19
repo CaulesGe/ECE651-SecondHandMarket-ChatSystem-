@@ -73,6 +73,9 @@ export JWT_SECRET="${JWT_SECRET:-dev-secret-change-me}"
 # Provide a default SQLite DB path for Prisma when DATABASE_URL is not set.
 # Path is relative to backend/prisma/schema.prisma.
 export DATABASE_URL="${DATABASE_URL:-file:../database/secondhand.db}"
+# Redis foundation flags (disabled by default until Redis is provisioned).
+export REDIS_ENABLED="${REDIS_ENABLED:-false}"
+export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:6379}"
 npm install
 npx prisma generate
 npx prisma db push

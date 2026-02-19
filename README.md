@@ -96,6 +96,11 @@ This installs dependencies, sets up the database, and starts both servers.
 - Backend API: `http://localhost:3000`
 - Frontend: `http://localhost:5173`
 
+Redis is scaffolded for upcoming chat scaling work and is **disabled by default** in local dev.  
+Enable it by setting:
+- `REDIS_ENABLED=true`
+- `REDIS_URL=redis://127.0.0.1:6379`
+
 ### Docker (Production Build)
 Run the entire app in a single Docker container on port 3000:
 ```bash
@@ -103,6 +108,15 @@ bash start.sh --docker
 # or
 bash start.sh -d
 ```
+
+### Docker Compose (App + Redis)
+For production-like Redis wiring:
+```bash
+docker compose up --build
+```
+This starts:
+- app: `http://localhost:3000`
+- redis: internal service at `redis://redis:6379`
 
 Or run Docker commands manually:
 ```bash
