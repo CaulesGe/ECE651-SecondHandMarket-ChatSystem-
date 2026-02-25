@@ -60,6 +60,9 @@ export default function HomePage() {
   });
 
   const recommended = goods.slice(0, 8);
+  const previewDescription = sellForm.description.trim()
+    ? `${sellForm.description.trim().slice(0, 120)}${sellForm.description.trim().length > 120 ? '...' : ''}`
+    : 'Add a clear description so buyers can decide quickly.';
 
   const handleCategoryClick = (cat) => {
     setCurrentCategory(cat);
@@ -181,91 +184,145 @@ export default function HomePage() {
             {/* Sell Panel */}
             {isLoggedIn && (
               <div className="sell-panel">
-                <h2>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  List a New Item
-                </h2>
-                <p>Share the details to get your item in front of buyers.</p>
-                
-                <form onSubmit={handleSellSubmit}>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Title</label>
-                      <input 
-                        value={sellForm.title}
-                        onChange={(e) => setSellForm({ ...sellForm, title: e.target.value })}
-                        placeholder="Vintage lamp, winter jacket..."
-                      />
+                <div className="sell-panel-shell">
+                  <div className="sell-panel-main">
+                    <div className="sell-panel-header">
+                      <span className="sell-panel-kicker">Seller Studio</span>
+                      <h2>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        List a New Item
+                      </h2>
+                      <p>Build a clean listing in under one minute. Required fields are marked.</p>
                     </div>
-                    <div className="form-group">
-                      <label>Price (CAD)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        value={sellForm.price}
-                        onChange={(e) => setSellForm({ ...sellForm, price: e.target.value })}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Condition</label>
-                      <select 
-                        value={sellForm.condition}
-                        onChange={(e) => setSellForm({ ...sellForm, condition: e.target.value })}
-                      >
-                        <option>Like New</option>
-                        <option>Good</option>
-                        <option>Fair</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Category</label>
-                      <select 
-                        value={sellForm.category}
-                        onChange={(e) => setSellForm({ ...sellForm, category: e.target.value })}
-                      >
-                        {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Description</label>
-                    <textarea 
-                      rows="3"
-                      value={sellForm.description}
-                      onChange={(e) => setSellForm({ ...sellForm, description: e.target.value })}
-                      placeholder="Describe your item..."
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Photo URL</label>
-                    <input 
-                      value={sellForm.images}
-                      onChange={(e) => setSellForm({ ...sellForm, images: e.target.value })}
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    Publish Listing
-                  </button>
-                </form>
 
-                {sellNotice.show && (
-                  <p className={`notice ${sellNotice.isError ? 'notice-error' : 'notice-success'}`}>
-                    {sellNotice.message}
-                  </p>
-                )}
+                    <form className="sell-panel-form" onSubmit={handleSellSubmit}>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>
+                            Title
+                            <span className="required-mark">Required</span>
+                          </label>
+                          <input
+                            value={sellForm.title}
+                            onChange={(e) => setSellForm({ ...sellForm, title: e.target.value })}
+                            placeholder="Vintage lamp, winter jacket..."
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>
+                            Price (CAD)
+                            <span className="required-mark">Required</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={sellForm.price}
+                            onChange={(e) => setSellForm({ ...sellForm, price: e.target.value })}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Condition</label>
+                          <select
+                            value={sellForm.condition}
+                            onChange={(e) => setSellForm({ ...sellForm, condition: e.target.value })}
+                          >
+                            <option>Like New</option>
+                            <option>Good</option>
+                            <option>Fair</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>
+                            Category
+                            <span className="required-mark">Required</span>
+                          </label>
+                          <select
+                            value={sellForm.category}
+                            onChange={(e) => setSellForm({ ...sellForm, category: e.target.value })}
+                          >
+                            {categories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label>Description</label>
+                        <textarea
+                          rows="3"
+                          value={sellForm.description}
+                          onChange={(e) => setSellForm({ ...sellForm, description: e.target.value })}
+                          placeholder="Describe your item..."
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Photo URL</label>
+                        <input
+                          value={sellForm.images}
+                          onChange={(e) => setSellForm({ ...sellForm, images: e.target.value })}
+                          placeholder="https://..."
+                        />
+                      </div>
+
+                      <div className="sell-panel-form-footer">
+                        <p>Your listing goes live immediately after publish.</p>
+                        <button type="submit" className="btn btn-primary sell-submit-btn">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          Publish Listing
+                        </button>
+                      </div>
+                    </form>
+
+                    {sellNotice.show && (
+                      <p className={`notice sell-notice ${sellNotice.isError ? 'notice-error' : 'notice-success'}`}>
+                        {sellNotice.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <aside className="sell-panel-side">
+                    <span className="sell-preview-label">Live Preview</span>
+                    <h3 className="sell-preview-title">{sellForm.title || 'Your item title will appear here'}</h3>
+                    <div className="sell-preview-price">
+                      {sellForm.price ? `CAD ${sellForm.price}` : 'Set your price'}
+                    </div>
+                    <div className="sell-preview-meta">
+                      <span>{sellForm.condition}</span>
+                      <span>{sellForm.category || 'Pick category'}</span>
+                    </div>
+                    <p className="sell-preview-description">{previewDescription}</p>
+
+                    <ul className="sell-checklist">
+                      <li>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Add a precise title to improve search ranking.
+                      </li>
+                      <li>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Include one clean photo URL for higher click-through.
+                      </li>
+                      <li>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Honest condition and details reduce negotiation friction.
+                      </li>
+                    </ul>
+                  </aside>
+                </div>
               </div>
             )}
 
