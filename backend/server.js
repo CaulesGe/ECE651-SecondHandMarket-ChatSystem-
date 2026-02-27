@@ -2,11 +2,13 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import http from "http";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { mountChatService } from "./chat/index.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import { isEmailConfigured, sendVerificationEmail } from "./email.js";
 import { closeRedis, initRedis } from "./utils/redis.js";
 
@@ -19,9 +21,38 @@ const PORT = process.env.PORT || 3000;
 const prisma = new PrismaClient();
 const httpServer = http.createServer(app);
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const goodsUploadsDir = path.join(__dirname, "uploads", "goods");
+const allowedImageExts = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+const allowedImageMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif"
+]);
+
+fs.mkdirSync(goodsUploadsDir, { recursive: true });
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
+
+const goodsImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, goodsUploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "").toLowerCase();
+      const safeExt = allowedImageExts.has(ext) ? ext : ".jpg";
+      cb(null, `${Date.now()}-${crypto.randomUUID()}${safeExt}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!allowedImageMimeTypes.has(file.mimetype)) {
+      return cb(new Error("Only JPG, PNG, WEBP, and GIF images are allowed."));
+    }
+    return cb(null, true);
+  }
+});
 
 // Serve static files from the client build directory in production
 const clientDistPath = path.join(__dirname, "../client/dist");
@@ -394,6 +425,25 @@ app.get("/api/categories", async (_req, res) => {
   });
   const categories = [...new Set(goods.map(g => g.category))].sort();
   res.json({ categories });
+});
+
+// Upload listing image
+app.post("/api/goods/upload-image", requireRole(["admin", "user"]), (req, res) => {
+  goodsImageUpload.single("image")(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "Image must be 5MB or smaller." });
+      }
+      return res.status(400).json({ message: err.message || "Image upload failed." });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "Image file is required." });
+    }
+
+    return res.status(201).json({
+      url: `/api/uploads/goods/${req.file.filename}`
+    });
+  });
 });
 
 // Create new listing
