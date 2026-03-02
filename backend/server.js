@@ -179,8 +179,156 @@ const requireRole = (allowedRoles = []) => (req, res, next) => {
   return next();
 };
 
+const normalizeOptionalString = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text ? text : null;
+};
+
+const normalizeOptionalPrice = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeImageList = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => normalizeOptionalString(entry))
+    .filter(Boolean);
+};
+
+const parseImageList = (raw) => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+};
+
+const toDraftResponse = (draft) => ({
+  ...draft,
+  images: parseImageList(draft.images)
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/api/drafts", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const drafts = await prisma.draft.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" }
+  });
+
+  return res.json({
+    items: drafts.map((draft) => toDraftResponse(draft))
+  });
+});
+
+app.post("/api/drafts", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const {
+    id,
+    title,
+    description,
+    price,
+    condition,
+    category,
+    images,
+    location
+  } = req.body || {};
+
+  const normalized = {
+    title: normalizeOptionalString(title),
+    description: normalizeOptionalString(description),
+    price: normalizeOptionalPrice(price),
+    condition: normalizeOptionalString(condition),
+    category: normalizeOptionalString(category),
+    location: normalizeOptionalString(location),
+    images: normalizeImageList(images)
+  };
+
+  const hasDraftContent = Boolean(
+    normalized.title ||
+      normalized.description ||
+      normalized.condition ||
+      normalized.category ||
+      normalized.location ||
+      normalized.price !== null ||
+      normalized.images.length
+  );
+
+  if (!hasDraftContent) {
+    return res.status(400).json({ message: "Draft is empty. Add some content first." });
+  }
+
+  const payload = {
+    title: normalized.title,
+    description: normalized.description,
+    price: normalized.price,
+    condition: normalized.condition,
+    category: normalized.category,
+    location: normalized.location,
+    images: JSON.stringify(normalized.images)
+  };
+
+  if (id) {
+    const existingDraft = await prisma.draft.findFirst({
+      where: { id: String(id), userId }
+    });
+
+    if (!existingDraft) {
+      return res.status(404).json({ message: "Draft not found." });
+    }
+
+    const updatedDraft = await prisma.draft.update({
+      where: { id: existingDraft.id },
+      data: payload
+    });
+
+    return res.status(200).json({ draft: toDraftResponse(updatedDraft) });
+  }
+
+  const newDraft = await prisma.draft.create({
+    data: {
+      id: `d_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+      userId,
+      ...payload
+    }
+  });
+
+  return res.status(201).json({ draft: toDraftResponse(newDraft) });
+});
+
+app.delete("/api/drafts/:id", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const { id } = req.params;
+  const existingDraft = await prisma.draft.findFirst({
+    where: { id, userId }
+  });
+
+  if (!existingDraft) {
+    return res.status(404).json({ message: "Draft not found." });
+  }
+
+  await prisma.draft.delete({ where: { id: existingDraft.id } });
+  return res.status(204).send();
 });
 
 app.post("/api/auth/login", async (req, res) => {

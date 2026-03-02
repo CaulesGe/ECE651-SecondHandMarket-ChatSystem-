@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ProductCard';
 import CartPanel from '../components/CartPanel';
+import DraftPanel from '../components/DraftPanel';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { api } from '../utils/api';
@@ -11,32 +12,119 @@ import { api } from '../utils/api';
 export default function HomePage() {
   const { user, isLoggedIn } = useAuth();
   const { recentlyViewed, clearRecentlyViewed } = useCart();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
+  const autoLoadedDraftIdRef = useRef('');
+  const sellPanelRef = useRef(null);
   
   const [goods, setGoods] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [drafts, setDrafts] = useState([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [activeDraftId, setActiveDraftId] = useState('');
+  const [showDraftPanel, setShowDraftPanel] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(searchParams.get('category') || 'All');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [loading, setLoading] = useState(true);
 
   // Sell panel state
-  const [showSellPanel, setShowSellPanel] = useState(false);
   const [sellForm, setSellForm] = useState({
-    title: '', price: '', condition: 'Like New', category: '', description: '', imageFile: null
+    title: '',
+    price: '',
+    condition: 'Like New',
+    category: '',
+    description: '',
+    imageFile: null,
+    imageUrl: ''
   });
   const [previewImageUrl, setPreviewImageUrl] = useState('');
   const [sellNotice, setSellNotice] = useState({ show: false, message: '', isError: false });
+
+  const revokeObjectUrlIfNeeded = (url) => {
+    if (url && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const loadDrafts = async () => {
+    if (!isLoggedIn) {
+      setDrafts([]);
+      return [];
+    }
+
+    setDraftsLoading(true);
+    try {
+      const draftsRes = await api.getDrafts(user);
+      const items = draftsRes.items || [];
+      setDrafts(items);
+      return items;
+    } catch (err) {
+      console.error('Error loading drafts:', err);
+      return [];
+    } finally {
+      setDraftsLoading(false);
+    }
+  };
+
+  const applyDraftToForm = (draft) => {
+    if (!draft) return;
+    const firstImage = draft.images?.[0] || '';
+
+    revokeObjectUrlIfNeeded(previewImageUrl);
+    setSellForm({
+      title: draft.title || '',
+      price: draft.price !== null && draft.price !== undefined ? String(draft.price) : '',
+      condition: draft.condition || 'Like New',
+      category: draft.category || categories[0] || '',
+      description: draft.description || '',
+      imageFile: null,
+      imageUrl: firstImage
+    });
+    setPreviewImageUrl(firstImage);
+    setActiveDraftId(draft.id);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     loadData();
   }, [searchParams]);
 
   useEffect(() => () => {
-    if (previewImageUrl) {
-      URL.revokeObjectURL(previewImageUrl);
-    }
+    revokeObjectUrlIfNeeded(previewImageUrl);
   }, [previewImageUrl]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setDrafts([]);
+      setActiveDraftId('');
+      return;
+    }
+    loadDrafts();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const target = sellPanelRef.current;
+    if (!target || !isLoggedIn) {
+      setShowDraftPanel(false);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        setShowDraftPanel(entry?.isIntersecting || false);
+      },
+      { threshold: 0.2 }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isLoggedIn]);
 
   const loadData = async () => {
     setLoading(true);
@@ -75,36 +163,50 @@ export default function HomePage() {
   const selectedImageSizeLabel = sellForm.imageFile
     ? `${(sellForm.imageFile.size / (1024 * 1024)).toFixed(2)} MB`
     : '';
+  const requestedDraftId = searchParams.get('draft') || '';
+
+  useEffect(() => {
+    if (!requestedDraftId || autoLoadedDraftIdRef.current === requestedDraftId) return;
+    if (drafts.length === 0) return;
+
+    const matchedDraft = drafts.find((draft) => draft.id === requestedDraftId);
+    if (!matchedDraft) return;
+
+    applyDraftToForm(matchedDraft);
+    autoLoadedDraftIdRef.current = requestedDraftId;
+    setSellNotice({
+      show: true,
+      message: `Draft "${matchedDraft.title || 'Untitled Draft'}" loaded.`,
+      isError: false
+    });
+  }, [requestedDraftId, drafts]);
 
   const handleCategoryClick = (cat) => {
     setCurrentCategory(cat);
   };
 
   const resetSellForm = () => {
-    if (previewImageUrl) {
-      URL.revokeObjectURL(previewImageUrl);
-    }
+    revokeObjectUrlIfNeeded(previewImageUrl);
     setPreviewImageUrl('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    setActiveDraftId('');
     setSellForm({
       title: '',
       price: '',
       condition: 'Like New',
       category: categories[0] || '',
       description: '',
-      imageFile: null
+      imageFile: null,
+      imageUrl: ''
     });
   };
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0] || null;
-    setSellForm(prev => ({ ...prev, imageFile: file }));
-
-    if (previewImageUrl) {
-      URL.revokeObjectURL(previewImageUrl);
-    }
+    setSellForm(prev => ({ ...prev, imageFile: file, imageUrl: '' }));
+    revokeObjectUrlIfNeeded(previewImageUrl);
 
     if (file) {
       setPreviewImageUrl(URL.createObjectURL(file));
@@ -112,6 +214,92 @@ export default function HomePage() {
     }
 
     setPreviewImageUrl('');
+  };
+
+  const handleSaveDraft = async () => {
+    if (!isLoggedIn) {
+      setSellNotice({ show: true, message: 'Please login first.', isError: true });
+      return;
+    }
+
+    const defaultCategory = categories[0] || '';
+    const hasAnyInput = Boolean(
+      sellForm.title.trim() ||
+      sellForm.description.trim() ||
+      sellForm.price ||
+      sellForm.imageFile ||
+      sellForm.imageUrl ||
+      (sellForm.category && sellForm.category !== defaultCategory) ||
+      (sellForm.condition && sellForm.condition !== 'Like New')
+    );
+
+    if (!hasAnyInput) {
+      setSellNotice({ show: true, message: 'Draft is empty. Add some content first.', isError: true });
+      return;
+    }
+
+    setSavingDraft(true);
+    try {
+      let savedImageUrl = sellForm.imageUrl || '';
+      if (sellForm.imageFile) {
+        const uploadResult = await api.uploadGoodImage(sellForm.imageFile, user);
+        savedImageUrl = uploadResult.url || '';
+      }
+
+      const saveResult = await api.saveDraft({
+        id: activeDraftId || undefined,
+        title: sellForm.title.trim(),
+        price: sellForm.price ? parseFloat(sellForm.price) : null,
+        condition: sellForm.condition,
+        category: sellForm.category,
+        description: sellForm.description.trim(),
+        images: savedImageUrl ? [savedImageUrl] : [],
+        location: 'Waterloo, ON'
+      }, user);
+
+      const savedDraft = saveResult.draft;
+      setActiveDraftId(savedDraft.id);
+      setSellForm(prev => ({
+        ...prev,
+        imageFile: null,
+        imageUrl: savedImageUrl
+      }));
+      setPreviewImageUrl(savedImageUrl || '');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      await loadDrafts();
+      setSellNotice({ show: true, message: 'Draft saved successfully.', isError: false });
+    } catch (err) {
+      setSellNotice({ show: true, message: err?.message || 'Failed to save draft. Try again.', isError: true });
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleDeleteDraft = async (draftId) => {
+    if (!draftId) return;
+    if (!window.confirm('Delete this draft?')) return;
+
+    try {
+      await api.deleteDraft(draftId, user);
+      setDrafts((prev) => prev.filter((draft) => draft.id !== draftId));
+
+      if (activeDraftId === draftId) {
+        resetSellForm();
+      }
+      setSellNotice({ show: true, message: 'Draft deleted.', isError: false });
+    } catch (err) {
+      setSellNotice({ show: true, message: err?.message || 'Failed to delete draft.', isError: true });
+    }
+  };
+
+  const handleEditDraft = (draft) => {
+    applyDraftToForm(draft);
+    setSellNotice({ show: true, message: `Editing draft "${draft.title || 'Untitled Draft'}".`, isError: false });
+    const sellPanel = document.querySelector('.sell-panel');
+    sellPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleSellSubmit = async (e) => {
@@ -122,7 +310,7 @@ export default function HomePage() {
     }
 
     try {
-      let imageUrl = '';
+      let imageUrl = sellForm.imageUrl || '';
       if (sellForm.imageFile) {
         const uploadResult = await api.uploadGoodImage(sellForm.imageFile, user);
         imageUrl = uploadResult.url || '';
@@ -137,8 +325,17 @@ export default function HomePage() {
         images: imageUrl ? [imageUrl] : []
       }, user);
 
+      if (activeDraftId) {
+        try {
+          await api.deleteDraft(activeDraftId, user);
+        } catch (draftDeleteError) {
+          console.error('Failed to remove published draft:', draftDeleteError);
+        }
+      }
+
       setSellNotice({ show: true, message: 'Listing published successfully!', isError: false });
       resetSellForm();
+      loadDrafts();
       loadData();
     } catch (err) {
       setSellNotice({ show: true, message: err?.message || 'Failed to publish listing. Try again.', isError: true });
@@ -235,7 +432,7 @@ export default function HomePage() {
 
             {/* Sell Panel */}
             {isLoggedIn && (
-              <div className="sell-panel">
+              <div className="sell-panel" ref={sellPanelRef}>
                 <div className="sell-panel-shell">
                   <div className="sell-panel-main">
                     <div className="sell-panel-header">
@@ -359,14 +556,28 @@ export default function HomePage() {
                       </div>
 
                       <div className="sell-panel-form-footer">
-                        <p>Your listing goes live immediately after publish.</p>
-                        <button type="submit" className="btn btn-primary sell-submit-btn">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                          </svg>
-                          Publish Listing
-                        </button>
+                        <p>
+                          {activeDraftId
+                            ? 'You are editing a draft. Publish will remove it from drafts.'
+                            : 'Your listing goes live immediately after publish.'}
+                        </p>
+                        <div className="sell-action-buttons">
+                          <button
+                            type="button"
+                            className="btn btn-secondary sell-draft-btn"
+                            onClick={handleSaveDraft}
+                            disabled={savingDraft}
+                          >
+                            {savingDraft ? 'Saving...' : 'Save as Draft'}
+                          </button>
+                          <button type="submit" className="btn btn-primary sell-submit-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Publish Listing
+                          </button>
+                        </div>
                       </div>
                     </form>
 
@@ -466,7 +677,19 @@ export default function HomePage() {
             </div>
           </section>
 
-          <CartPanel />
+          <div className="right-rail">
+            <CartPanel />
+            {showDraftPanel && (
+              <DraftPanel
+                drafts={drafts}
+                isLoggedIn={isLoggedIn}
+                loading={draftsLoading}
+                onEditDraft={handleEditDraft}
+                onDeleteDraft={handleDeleteDraft}
+                onOpenProfile={() => navigate('/profile')}
+              />
+            )}
+          </div>
         </div>
       </main>
 

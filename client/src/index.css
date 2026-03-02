@@ -354,6 +354,32 @@ a:hover {
   min-width: 0;
 }
 
+.right-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: sticky;
+  top: 80px;
+  align-self: start;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.right-rail::-webkit-scrollbar {
+  width: 4px;
+}
+
+.right-rail::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-radius: 4px;
+}
+
+.right-rail::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
 /* ===== RECOMMENDATION SECTIONS ===== */
 .recommendation-section {
   margin-bottom: 32px;
@@ -653,10 +679,7 @@ a:hover {
   padding: 20px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
-  position: sticky;
-  top: 80px;
   height: fit-content;
-  max-height: calc(100vh - 100px);
   display: flex;
   flex-direction: column;
 }
@@ -776,6 +799,77 @@ a:hover {
 
 .empty-cart p {
   font-size: 13px;
+}
+
+.draft-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.draft-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.draft-item {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.draft-item-main strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.draft-item-main span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.draft-item-main small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.draft-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.draft-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.draft-delete-btn {
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.draft-delete-btn:hover {
+  background: #fff1f2;
+}
+
+.draft-profile-btn {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.draft-notice {
+  margin: 0;
 }
 
 /* ===== SELL PANEL ===== */
@@ -1044,6 +1138,25 @@ a:hover {
 .sell-panel-form-footer p {
   font-size: 13px;
   color: #475569;
+}
+
+.sell-action-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sell-draft-btn {
+  border-radius: 14px;
+  padding: 13px 20px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.sell-draft-btn:hover {
+  background: #dbeafe;
 }
 
 .sell-submit-btn {
@@ -1822,10 +1935,33 @@ a:hover {
   align-items: center;
 }
 
+.product-item-draft {
+  align-items: center;
+  gap: 12px;
+}
+
+.draft-profile-meta {
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1024px) {
   .main-grid {
     grid-template-columns: 1fr;
+  }
+
+  .right-rail {
+    gap: 16px;
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
   
   .cart-panel {
@@ -1959,6 +2095,12 @@ a:hover {
     align-items: stretch;
   }
 
+  .sell-action-buttons {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .sell-draft-btn,
   .sell-submit-btn {
     width: 100%;
     justify-content: center;

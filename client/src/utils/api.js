@@ -108,6 +108,48 @@ export const api = {
     return data;
   },
 
+  async getDrafts(user) {
+    const res = await fetch(`${API_BASE}/drafts`, {
+      headers: {
+        'x-user-id': user.id,
+        'x-user-role': user.role
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Unable to load drafts');
+    return data;
+  },
+
+  async saveDraft(payload, user) {
+    const res = await fetch(`${API_BASE}/drafts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': user.id,
+        'x-user-role': user.role
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Unable to save draft');
+    return data;
+  },
+
+  async deleteDraft(id, user) {
+    const res = await fetch(`${API_BASE}/drafts/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'x-user-id': user.id,
+        'x-user-role': user.role
+      }
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Unable to delete draft');
+    }
+    return true;
+  },
+
   // Categories
   async getCategories() {
     const res = await fetch(`${API_BASE}/categories`);
