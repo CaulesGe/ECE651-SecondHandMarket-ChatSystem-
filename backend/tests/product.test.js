@@ -1,7 +1,7 @@
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { app } from "../server.js";
-import { execSync } from "node:child_process";
+import { prepareTestDb } from "./helpers/prepareTestDb.js";
 
 const prisma = new PrismaClient();
 
@@ -17,10 +17,7 @@ async function resetDb() {
 
 describe("Goods (product detail) integration", () => {
   beforeAll(async () => {
-    execSync("npx prisma db push", {
-      stdio: "inherit",
-      env: { ...process.env, DATABASE_URL: "file:./test.db" }
-    });
+    prepareTestDb();
     await prisma.$connect();
   });
 
@@ -351,5 +348,24 @@ describe("Goods (product detail) integration", () => {
       .expect(400);
 
     expect(res.body.message).toBe("Missing required fields.");
+  });
+
+  test("POST /api/goods falls back to default seller, location, and empty images", async () => {
+    const res = await request(app)
+      .post("/api/goods")
+      .set("x-user-role", "user")
+      .send({
+        title: "Desk Lamp",
+        price: 35,
+        condition: "Good",
+        category: "Home"
+      })
+      .expect(201);
+
+    expect(res.body.item.title).toBe("Desk Lamp");
+    expect(res.body.item.sellerName).toBe("Community Seller");
+    expect(res.body.item.sellerId).toBeNull();
+    expect(res.body.item.location).toBe("Waterloo, ON");
+    expect(res.body.item.images).toEqual([]);
   });
 });

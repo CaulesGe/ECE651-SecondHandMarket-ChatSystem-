@@ -1,7 +1,7 @@
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { app } from "../server.js";
-import { execSync } from "node:child_process";
+import { prepareTestDb } from "./helpers/prepareTestDb.js";
 
 const prisma = new PrismaClient();
 
@@ -14,10 +14,7 @@ async function resetDb() {
 
 describe("Auth integration", () => {
   beforeAll(async () => {
-    execSync("npx prisma db push", {
-        stdio: "inherit",
-        env: { ...process.env, DATABASE_URL: "file:./test.db" }
-    });
+    prepareTestDb();
     await prisma.$connect();
   });
 
