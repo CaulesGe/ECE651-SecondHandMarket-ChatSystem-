@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
+import { api, formatPrice } from '../utils/api';
 
 export default function ProfilePage() {
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const navigate = useNavigate();
 
   const [profile, setProfile] = useState({
@@ -16,6 +17,8 @@ export default function ProfilePage() {
   });
 
   const [tab, setTab] = useState('purchased');
+  const [drafts, setDrafts] = useState([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
 
   // Demo products - in a real app, these would come from the API
   const products = {
@@ -36,10 +39,23 @@ export default function ProfilePage() {
     alert('Profile saved!');
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const fetchDrafts = async () => {
+      setDraftsLoading(true);
+      try {
+        const response = await api.getDrafts(user);
+        setDrafts(response.items || []);
+      } catch (error) {
+        console.error('Failed to load drafts on profile page:', error);
+      } finally {
+        setDraftsLoading(false);
+      }
+    };
+
+    fetchDrafts();
+  }, [isLoggedIn, user.id]);
 
   if (!isLoggedIn) {
     navigate('/login');
@@ -49,6 +65,14 @@ export default function ProfilePage() {
   const initials = user.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
+
+  const currentList = tab === 'drafts' ? drafts : products[tab];
+  const formatDraftUpdatedAt = (value) => {
+    if (!value) return 'Just now';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Just now';
+    return date.toLocaleString();
+  };
 
   return (
     <>
@@ -133,24 +157,58 @@ export default function ProfilePage() {
               >
                 Sold
               </button>
+              <button
+                className={tab === 'drafts' ? 'active' : ''}
+                onClick={() => setTab('drafts')}
+              >
+                Drafts
+              </button>
             </div>
 
             <ul className="product-list">
-              {products[tab].length === 0 ? (
+              {tab === 'drafts' && draftsLoading ? (
+                <li style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
+                  Loading drafts...
+                </li>
+              ) : currentList.length === 0 ? (
                 <li style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
                   No items in this category
                 </li>
               ) : (
-                products[tab].map((item) => (
-                  <li key={item.id} className="product-item">
-                    <span>
-                      {item.name} — ${item.price}
-                    </span>
-                    <span className={`badge badge-${tab === 'purchased' ? 'success' : tab === 'selling' ? 'primary' : 'warning'}`}>
-                      {tab}
-                    </span>
-                  </li>
-                ))
+                currentList.map((item) => {
+                  if (tab === 'drafts') {
+                    return (
+                      <li key={item.id} className="product-item product-item-draft">
+                        <div>
+                          <strong>{item.title || 'Untitled Draft'}</strong>
+                          <div className="draft-profile-meta">
+                            <span>{item.price ? formatPrice(item.price) : 'No price'}</span>
+                            <span>{item.category || 'No category'}</span>
+                            <span>{formatDraftUpdatedAt(item.updatedAt)}</span>
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => navigate(`/?draft=${encodeURIComponent(item.id)}`)}
+                          type="button"
+                        >
+                          Continue Editing
+                        </button>
+                      </li>
+                    );
+                  }
+
+                  return (
+                    <li key={item.id} className="product-item">
+                      <span>
+                        {item.name} — ${item.price}
+                      </span>
+                      <span className={`badge badge-${tab === 'purchased' ? 'success' : tab === 'selling' ? 'primary' : 'warning'}`}>
+                        {tab}
+                      </span>
+                    </li>
+                  );
+                })
               )}
             </ul>
           </div>

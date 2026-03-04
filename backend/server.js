@@ -2,11 +2,13 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import http from "http";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { mountChatService } from "./chat/index.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import { isEmailConfigured, sendVerificationEmail } from "./email.js";
 import { closeRedis, initRedis } from "./utils/redis.js";
 
@@ -19,9 +21,38 @@ const PORT = process.env.PORT || 3000;
 const prisma = new PrismaClient();
 const httpServer = http.createServer(app);
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const goodsUploadsDir = path.join(__dirname, "uploads", "goods");
+const allowedImageExts = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+const allowedImageMimeTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif"
+]);
+
+fs.mkdirSync(goodsUploadsDir, { recursive: true });
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
+
+const goodsImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, goodsUploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "").toLowerCase();
+      const safeExt = allowedImageExts.has(ext) ? ext : ".jpg";
+      cb(null, `${Date.now()}-${crypto.randomUUID()}${safeExt}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!allowedImageMimeTypes.has(file.mimetype)) {
+      return cb(new Error("Only JPG, PNG, WEBP, and GIF images are allowed."));
+    }
+    return cb(null, true);
+  }
+});
 
 // Serve static files from the client build directory in production
 const clientDistPath = path.join(__dirname, "../client/dist");
@@ -148,8 +179,156 @@ const requireRole = (allowedRoles = []) => (req, res, next) => {
   return next();
 };
 
+const normalizeOptionalString = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text ? text : null;
+};
+
+const normalizeOptionalPrice = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeImageList = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => normalizeOptionalString(entry))
+    .filter(Boolean);
+};
+
+const parseImageList = (raw) => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+};
+
+const toDraftResponse = (draft) => ({
+  ...draft,
+  images: parseImageList(draft.images)
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/api/drafts", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const drafts = await prisma.draft.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" }
+  });
+
+  return res.json({
+    items: drafts.map((draft) => toDraftResponse(draft))
+  });
+});
+
+app.post("/api/drafts", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const {
+    id,
+    title,
+    description,
+    price,
+    condition,
+    category,
+    images,
+    location
+  } = req.body || {};
+
+  const normalized = {
+    title: normalizeOptionalString(title),
+    description: normalizeOptionalString(description),
+    price: normalizeOptionalPrice(price),
+    condition: normalizeOptionalString(condition),
+    category: normalizeOptionalString(category),
+    location: normalizeOptionalString(location),
+    images: normalizeImageList(images)
+  };
+
+  const hasDraftContent = Boolean(
+    normalized.title ||
+      normalized.description ||
+      normalized.condition ||
+      normalized.category ||
+      normalized.location ||
+      normalized.price !== null ||
+      normalized.images.length
+  );
+
+  if (!hasDraftContent) {
+    return res.status(400).json({ message: "Draft is empty. Add some content first." });
+  }
+
+  const payload = {
+    title: normalized.title,
+    description: normalized.description,
+    price: normalized.price,
+    condition: normalized.condition,
+    category: normalized.category,
+    location: normalized.location,
+    images: JSON.stringify(normalized.images)
+  };
+
+  if (id) {
+    const existingDraft = await prisma.draft.findFirst({
+      where: { id: String(id), userId }
+    });
+
+    if (!existingDraft) {
+      return res.status(404).json({ message: "Draft not found." });
+    }
+
+    const updatedDraft = await prisma.draft.update({
+      where: { id: existingDraft.id },
+      data: payload
+    });
+
+    return res.status(200).json({ draft: toDraftResponse(updatedDraft) });
+  }
+
+  const newDraft = await prisma.draft.create({
+    data: {
+      id: `d_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+      userId,
+      ...payload
+    }
+  });
+
+  return res.status(201).json({ draft: toDraftResponse(newDraft) });
+});
+
+app.delete("/api/drafts/:id", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const { id } = req.params;
+  const existingDraft = await prisma.draft.findFirst({
+    where: { id, userId }
+  });
+
+  if (!existingDraft) {
+    return res.status(404).json({ message: "Draft not found." });
+  }
+
+  await prisma.draft.delete({ where: { id: existingDraft.id } });
+  return res.status(204).send();
 });
 
 app.post("/api/auth/login", async (req, res) => {
@@ -396,6 +575,25 @@ app.get("/api/categories", async (_req, res) => {
   res.json({ categories });
 });
 
+// Upload listing image
+app.post("/api/goods/upload-image", requireRole(["admin", "user"]), (req, res) => {
+  goodsImageUpload.single("image")(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "Image must be 5MB or smaller." });
+      }
+      return res.status(400).json({ message: err.message || "Image upload failed." });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "Image file is required." });
+    }
+
+    return res.status(201).json({
+      url: `/api/uploads/goods/${req.file.filename}`
+    });
+  });
+});
+
 // Create new listing
 app.post("/api/goods", requireRole(["admin", "user"]), async (req, res) => {
   const { title, description, price, condition, category, images, location } = req.body || {};
@@ -522,7 +720,9 @@ const start = async () => {
   }
 };
 
-start();
+if (process.env.NODE_ENV !== "test") {
+  start();
+}
 
 const shutdown = async () => {
   try {
@@ -535,3 +735,4 @@ const shutdown = async () => {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+export { app, prisma, start };

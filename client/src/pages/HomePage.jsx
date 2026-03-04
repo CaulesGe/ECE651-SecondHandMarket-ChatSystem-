@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ProductCard from '../components/ProductCard';
 import CartPanel from '../components/CartPanel';
+import DraftPanel from '../components/DraftPanel';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { api } from '../utils/api';
@@ -11,24 +12,119 @@ import { api } from '../utils/api';
 export default function HomePage() {
   const { user, isLoggedIn } = useAuth();
   const { recentlyViewed, clearRecentlyViewed } = useCart();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const fileInputRef = useRef(null);
+  const autoLoadedDraftIdRef = useRef('');
+  const sellPanelRef = useRef(null);
   
   const [goods, setGoods] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [drafts, setDrafts] = useState([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [activeDraftId, setActiveDraftId] = useState('');
+  const [showDraftPanel, setShowDraftPanel] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(searchParams.get('category') || 'All');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [loading, setLoading] = useState(true);
 
   // Sell panel state
-  const [showSellPanel, setShowSellPanel] = useState(false);
   const [sellForm, setSellForm] = useState({
-    title: '', price: '', condition: 'Like New', category: '', description: '', images: ''
+    title: '',
+    price: '',
+    condition: 'Like New',
+    category: '',
+    description: '',
+    imageFile: null,
+    imageUrl: ''
   });
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
   const [sellNotice, setSellNotice] = useState({ show: false, message: '', isError: false });
+
+  const revokeObjectUrlIfNeeded = (url) => {
+    if (url && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const loadDrafts = async () => {
+    if (!isLoggedIn) {
+      setDrafts([]);
+      return [];
+    }
+
+    setDraftsLoading(true);
+    try {
+      const draftsRes = await api.getDrafts(user);
+      const items = draftsRes.items || [];
+      setDrafts(items);
+      return items;
+    } catch (err) {
+      console.error('Error loading drafts:', err);
+      return [];
+    } finally {
+      setDraftsLoading(false);
+    }
+  };
+
+  const applyDraftToForm = (draft) => {
+    if (!draft) return;
+    const firstImage = draft.images?.[0] || '';
+
+    revokeObjectUrlIfNeeded(previewImageUrl);
+    setSellForm({
+      title: draft.title || '',
+      price: draft.price !== null && draft.price !== undefined ? String(draft.price) : '',
+      condition: draft.condition || 'Like New',
+      category: draft.category || categories[0] || '',
+      description: draft.description || '',
+      imageFile: null,
+      imageUrl: firstImage
+    });
+    setPreviewImageUrl(firstImage);
+    setActiveDraftId(draft.id);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     loadData();
   }, [searchParams]);
+
+  useEffect(() => () => {
+    revokeObjectUrlIfNeeded(previewImageUrl);
+  }, [previewImageUrl]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setDrafts([]);
+      setActiveDraftId('');
+      return;
+    }
+    loadDrafts();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const target = sellPanelRef.current;
+    if (!target || !isLoggedIn) {
+      setShowDraftPanel(false);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        setShowDraftPanel(entry?.isIntersecting || false);
+      },
+      { threshold: 0.2 }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isLoggedIn]);
 
   const loadData = async () => {
     setLoading(true);
@@ -60,9 +156,150 @@ export default function HomePage() {
   });
 
   const recommended = goods.slice(0, 8);
+  const previewDescription = sellForm.description.trim()
+    ? `${sellForm.description.trim().slice(0, 120)}${sellForm.description.trim().length > 120 ? '...' : ''}`
+    : 'Add a clear description so buyers can decide quickly.';
+  const descriptionCount = sellForm.description.length;
+  const selectedImageSizeLabel = sellForm.imageFile
+    ? `${(sellForm.imageFile.size / (1024 * 1024)).toFixed(2)} MB`
+    : '';
+  const requestedDraftId = searchParams.get('draft') || '';
+
+  useEffect(() => {
+    if (!requestedDraftId || autoLoadedDraftIdRef.current === requestedDraftId) return;
+    if (drafts.length === 0) return;
+
+    const matchedDraft = drafts.find((draft) => draft.id === requestedDraftId);
+    if (!matchedDraft) return;
+
+    applyDraftToForm(matchedDraft);
+    autoLoadedDraftIdRef.current = requestedDraftId;
+    setSellNotice({
+      show: true,
+      message: `Draft "${matchedDraft.title || 'Untitled Draft'}" loaded.`,
+      isError: false
+    });
+  }, [requestedDraftId, drafts]);
 
   const handleCategoryClick = (cat) => {
     setCurrentCategory(cat);
+  };
+
+  const resetSellForm = () => {
+    revokeObjectUrlIfNeeded(previewImageUrl);
+    setPreviewImageUrl('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setActiveDraftId('');
+    setSellForm({
+      title: '',
+      price: '',
+      condition: 'Like New',
+      category: categories[0] || '',
+      description: '',
+      imageFile: null,
+      imageUrl: ''
+    });
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0] || null;
+    setSellForm(prev => ({ ...prev, imageFile: file, imageUrl: '' }));
+    revokeObjectUrlIfNeeded(previewImageUrl);
+
+    if (file) {
+      setPreviewImageUrl(URL.createObjectURL(file));
+      return;
+    }
+
+    setPreviewImageUrl('');
+  };
+
+  const handleSaveDraft = async () => {
+    if (!isLoggedIn) {
+      setSellNotice({ show: true, message: 'Please login first.', isError: true });
+      return;
+    }
+
+    const defaultCategory = categories[0] || '';
+    const hasAnyInput = Boolean(
+      sellForm.title.trim() ||
+      sellForm.description.trim() ||
+      sellForm.price ||
+      sellForm.imageFile ||
+      sellForm.imageUrl ||
+      (sellForm.category && sellForm.category !== defaultCategory) ||
+      (sellForm.condition && sellForm.condition !== 'Like New')
+    );
+
+    if (!hasAnyInput) {
+      setSellNotice({ show: true, message: 'Draft is empty. Add some content first.', isError: true });
+      return;
+    }
+
+    setSavingDraft(true);
+    try {
+      let savedImageUrl = sellForm.imageUrl || '';
+      if (sellForm.imageFile) {
+        const uploadResult = await api.uploadGoodImage(sellForm.imageFile, user);
+        savedImageUrl = uploadResult.url || '';
+      }
+
+      const saveResult = await api.saveDraft({
+        id: activeDraftId || undefined,
+        title: sellForm.title.trim(),
+        price: sellForm.price ? parseFloat(sellForm.price) : null,
+        condition: sellForm.condition,
+        category: sellForm.category,
+        description: sellForm.description.trim(),
+        images: savedImageUrl ? [savedImageUrl] : [],
+        location: 'Waterloo, ON'
+      }, user);
+
+      const savedDraft = saveResult.draft;
+      setActiveDraftId(savedDraft.id);
+      setSellForm(prev => ({
+        ...prev,
+        imageFile: null,
+        imageUrl: savedImageUrl
+      }));
+      setPreviewImageUrl(savedImageUrl || '');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      await loadDrafts();
+      setSellNotice({ show: true, message: 'Draft saved successfully.', isError: false });
+    } catch (err) {
+      setSellNotice({ show: true, message: err?.message || 'Failed to save draft. Try again.', isError: true });
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleDeleteDraft = async (draftId) => {
+    if (!draftId) return;
+    if (!window.confirm('Delete this draft?')) return;
+
+    try {
+      await api.deleteDraft(draftId, user);
+      setDrafts((prev) => prev.filter((draft) => draft.id !== draftId));
+
+      if (activeDraftId === draftId) {
+        resetSellForm();
+      }
+      setSellNotice({ show: true, message: 'Draft deleted.', isError: false });
+    } catch (err) {
+      setSellNotice({ show: true, message: err?.message || 'Failed to delete draft.', isError: true });
+    }
+  };
+
+  const handleEditDraft = (draft) => {
+    applyDraftToForm(draft);
+    setSellNotice({ show: true, message: `Editing draft "${draft.title || 'Untitled Draft'}".`, isError: false });
+    const sellPanel = document.querySelector('.sell-panel');
+    sellPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const handleSellSubmit = async (e) => {
@@ -73,20 +310,35 @@ export default function HomePage() {
     }
 
     try {
+      let imageUrl = sellForm.imageUrl || '';
+      if (sellForm.imageFile) {
+        const uploadResult = await api.uploadGoodImage(sellForm.imageFile, user);
+        imageUrl = uploadResult.url || '';
+      }
+
       await api.createGood({
         title: sellForm.title,
         price: parseFloat(sellForm.price),
         condition: sellForm.condition,
         category: sellForm.category,
         description: sellForm.description,
-        images: sellForm.images ? [sellForm.images] : []
+        images: imageUrl ? [imageUrl] : []
       }, user);
 
+      if (activeDraftId) {
+        try {
+          await api.deleteDraft(activeDraftId, user);
+        } catch (draftDeleteError) {
+          console.error('Failed to remove published draft:', draftDeleteError);
+        }
+      }
+
       setSellNotice({ show: true, message: 'Listing published successfully!', isError: false });
-      setSellForm({ title: '', price: '', condition: 'Like New', category: categories[0] || '', description: '', images: '' });
+      resetSellForm();
+      loadDrafts();
       loadData();
     } catch (err) {
-      setSellNotice({ show: true, message: 'Failed to publish listing. Try again.', isError: true });
+      setSellNotice({ show: true, message: err?.message || 'Failed to publish listing. Try again.', isError: true });
     }
   };
 
@@ -180,92 +432,214 @@ export default function HomePage() {
 
             {/* Sell Panel */}
             {isLoggedIn && (
-              <div className="sell-panel">
-                <h2>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  List a New Item
-                </h2>
-                <p>Share the details to get your item in front of buyers.</p>
-                
-                <form onSubmit={handleSellSubmit}>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Title</label>
-                      <input 
-                        value={sellForm.title}
-                        onChange={(e) => setSellForm({ ...sellForm, title: e.target.value })}
-                        placeholder="Vintage lamp, winter jacket..."
-                      />
+              <div className="sell-panel" ref={sellPanelRef}>
+                <div className="sell-panel-shell">
+                  <div className="sell-panel-main">
+                    <div className="sell-panel-header">
+                      <div className="sell-panel-kicker-row">
+                        <span className="sell-panel-kicker">Seller Studio</span>
+                        <span className="sell-panel-kicker sell-panel-kicker-soft">Quick Publish</span>
+                      </div>
+                      <h2>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        List a New Item
+                      </h2>
+                      <p>Build a clean listing in under one minute. Required fields are marked.</p>
+                      <div className="sell-panel-points">
+                        <span>60s average setup</span>
+                        <span>Real-time preview</span>
+                        <span>Instant publish</span>
+                      </div>
                     </div>
-                    <div className="form-group">
-                      <label>Price (CAD)</label>
-                      <input 
-                        type="number"
-                        min="1"
-                        value={sellForm.price}
-                        onChange={(e) => setSellForm({ ...sellForm, price: e.target.value })}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Condition</label>
-                      <select 
-                        value={sellForm.condition}
-                        onChange={(e) => setSellForm({ ...sellForm, condition: e.target.value })}
-                      >
-                        <option>Like New</option>
-                        <option>Good</option>
-                        <option>Fair</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Category</label>
-                      <select 
-                        value={sellForm.category}
-                        onChange={(e) => setSellForm({ ...sellForm, category: e.target.value })}
-                      >
-                        {categories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Description</label>
-                    <textarea 
-                      rows="3"
-                      value={sellForm.description}
-                      onChange={(e) => setSellForm({ ...sellForm, description: e.target.value })}
-                      placeholder="Describe your item..."
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Photo URL</label>
-                    <input 
-                      value={sellForm.images}
-                      onChange={(e) => setSellForm({ ...sellForm, images: e.target.value })}
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <button type="submit" className="btn btn-primary">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    Publish Listing
-                  </button>
-                </form>
 
-                {sellNotice.show && (
-                  <p className={`notice ${sellNotice.isError ? 'notice-error' : 'notice-success'}`}>
-                    {sellNotice.message}
-                  </p>
-                )}
+                    <form className="sell-panel-form" onSubmit={handleSellSubmit}>
+                      <div className="form-row">
+                        <div className="form-group sell-field">
+                          <label>
+                            Title
+                            <span className="required-mark">Required</span>
+                          </label>
+                          <input
+                            value={sellForm.title}
+                            onChange={(e) => setSellForm({ ...sellForm, title: e.target.value })}
+                            placeholder="Vintage lamp, winter jacket..."
+                          />
+                        </div>
+                        <div className="form-group sell-field">
+                          <label>
+                            Price (CAD)
+                            <span className="required-mark">Required</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={sellForm.price}
+                            onChange={(e) => setSellForm({ ...sellForm, price: e.target.value })}
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group sell-field">
+                          <label>Condition</label>
+                          <select
+                            value={sellForm.condition}
+                            onChange={(e) => setSellForm({ ...sellForm, condition: e.target.value })}
+                          >
+                            <option>Like New</option>
+                            <option>Good</option>
+                            <option>Fair</option>
+                          </select>
+                        </div>
+                        <div className="form-group sell-field">
+                          <label>
+                            Category
+                            <span className="required-mark">Required</span>
+                          </label>
+                          <select
+                            value={sellForm.category}
+                            onChange={(e) => setSellForm({ ...sellForm, category: e.target.value })}
+                          >
+                            {categories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="form-group sell-field">
+                        <label>Description</label>
+                        <textarea
+                          rows="4"
+                          maxLength={500}
+                          value={sellForm.description}
+                          onChange={(e) => setSellForm({ ...sellForm, description: e.target.value })}
+                          placeholder="Describe your item..."
+                        />
+                        <div className="sell-field-meta">
+                          <span>Tip: Include brand, condition details, and pickup location.</span>
+                          <span>{descriptionCount}/500</span>
+                        </div>
+                      </div>
+                      <div className="form-group sell-photo-group">
+                        <label>Cover Photo</label>
+                        <input
+                          id="sell-photo-input"
+                          className="sell-file-input"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          ref={fileInputRef}
+                          onChange={handleImageSelect}
+                        />
+                        <label
+                          htmlFor="sell-photo-input"
+                          className={`sell-upload-card ${sellForm.imageFile ? 'has-file' : ''}`}
+                        >
+                          <span className="sell-upload-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                              <polyline points="17 8 12 3 7 8"></polyline>
+                              <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                          </span>
+                          <span className="sell-upload-copy">
+                            <strong>{sellForm.imageFile ? sellForm.imageFile.name : 'Choose or drop an image'}</strong>
+                            <small>
+                              {sellForm.imageFile
+                                ? `${selectedImageSizeLabel} · Ready to upload`
+                                : 'JPG, PNG, WEBP or GIF · max 5MB'}
+                            </small>
+                          </span>
+                        </label>
+                      </div>
+
+                      <div className="sell-panel-form-footer">
+                        <p>
+                          {activeDraftId
+                            ? 'You are editing a draft. Publish will remove it from drafts.'
+                            : 'Your listing goes live immediately after publish.'}
+                        </p>
+                        <div className="sell-action-buttons">
+                          <button
+                            type="button"
+                            className="btn btn-secondary sell-draft-btn"
+                            onClick={handleSaveDraft}
+                            disabled={savingDraft}
+                          >
+                            {savingDraft ? 'Saving...' : 'Save as Draft'}
+                          </button>
+                          <button type="submit" className="btn btn-primary sell-submit-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="12" y1="5" x2="12" y2="19"></line>
+                              <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Publish Listing
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+
+                    {sellNotice.show && (
+                      <p className={`notice sell-notice ${sellNotice.isError ? 'notice-error' : 'notice-success'}`}>
+                        {sellNotice.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <aside className="sell-panel-side">
+                    <span className="sell-preview-label">Live Preview</span>
+                    <h3 className="sell-preview-title">{sellForm.title || 'Your item title will appear here'}</h3>
+                    <div className="sell-preview-price">
+                      {sellForm.price ? `CAD ${sellForm.price}` : 'Set your price'}
+                    </div>
+                    <div className="sell-preview-meta">
+                      <span>{sellForm.condition}</span>
+                      <span>{sellForm.category || 'Pick category'}</span>
+                    </div>
+                    <div className="sell-preview-image-shell">
+                      {previewImageUrl ? (
+                        <img
+                          src={previewImageUrl}
+                          alt="Listing preview"
+                          className="sell-preview-image"
+                        />
+                      ) : (
+                        <div className="sell-preview-image-placeholder">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                          </svg>
+                          <span>Your cover photo appears here</span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="sell-preview-description">{previewDescription}</p>
+
+                    <ul className="sell-checklist">
+                      <li>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Add a precise title to improve search ranking.
+                      </li>
+                      <li>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Include one clean photo for higher click-through.
+                      </li>
+                      <li>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Honest condition and details reduce negotiation friction.
+                      </li>
+                    </ul>
+                  </aside>
+                </div>
               </div>
             )}
 
@@ -303,7 +677,19 @@ export default function HomePage() {
             </div>
           </section>
 
-          <CartPanel />
+          <div className="right-rail">
+            <CartPanel />
+            {showDraftPanel && (
+              <DraftPanel
+                drafts={drafts}
+                isLoggedIn={isLoggedIn}
+                loading={draftsLoading}
+                onEditDraft={handleEditDraft}
+                onDeleteDraft={handleDeleteDraft}
+                onOpenProfile={() => navigate('/profile')}
+              />
+            )}
+          </div>
         </div>
       </main>
 

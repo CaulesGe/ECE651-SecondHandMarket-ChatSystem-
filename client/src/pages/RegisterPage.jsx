@@ -11,19 +11,25 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [repassword, setRePassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState({ show: false, message: '', isError: true });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !repassword) {
       setNotice({ show: true, message: 'Please complete all fields.', isError: true });
       return;
     }
 
     if (password.length < 6) {
       setNotice({ show: true, message: 'Password must be at least 6 characters.', isError: true });
+      return;
+    }
+
+    if (password != repassword) {
+      setNotice({ show: true, message: 'Two password does not match', isError: true });
       return;
     }
 
@@ -103,6 +109,17 @@ export default function RegisterPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="registerPassword">Confirm Password</label>
+            <input 
+              id="registerPassword"
+              type="password"
+              placeholder="Confirm the password"
+              autoComplete="new-password"
+              value={repassword}
+              onChange={(e) => setRePassword(e.target.value)}
             />
           </div>
           <button 

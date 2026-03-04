@@ -18,6 +18,7 @@ model User {
   chatParticipants ConversationParticipant[]
   chatMessages Message[]
   chatReadStates ConversationReadState[]
+  drafts       Draft[]
   emailVerified       Boolean  @default(false)
   verificationToken   String?  @unique
   verificationExpires DateTime?
@@ -35,6 +36,23 @@ model Goods {
   sellerName  String
   location    String
   listedAt    DateTime
+}
+
+model Draft {
+  id          String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String?
+  description String?
+  price       Float?
+  condition   String?
+  category    String?
+  images      String?
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, updatedAt])
 }
 
 model Transaction {

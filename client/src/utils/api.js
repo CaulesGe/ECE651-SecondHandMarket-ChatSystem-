@@ -69,6 +69,29 @@ export const api = {
     return res.json();
   },
 
+  async uploadGoodImage(file, user) {
+    if (!(file instanceof File)) {
+      throw new Error('Image file is required');
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const res = await fetch(`${API_BASE}/goods/upload-image`, {
+      method: 'POST',
+      headers: {
+        'x-user-id': user.id,
+        'x-user-role': user.role,
+        'x-user-name': user.name || 'Seller'
+      },
+      body: formData
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Unable to upload image');
+    return data;
+  },
+
   async createGood(payload, user) {
     const res = await fetch(`${API_BASE}/goods`, {
       method: 'POST',
@@ -80,8 +103,51 @@ export const api = {
       },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Unable to list item');
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Unable to list item');
+    return data;
+  },
+
+  async getDrafts(user) {
+    const res = await fetch(`${API_BASE}/drafts`, {
+      headers: {
+        'x-user-id': user.id,
+        'x-user-role': user.role
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Unable to load drafts');
+    return data;
+  },
+
+  async saveDraft(payload, user) {
+    const res = await fetch(`${API_BASE}/drafts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': user.id,
+        'x-user-role': user.role
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Unable to save draft');
+    return data;
+  },
+
+  async deleteDraft(id, user) {
+    const res = await fetch(`${API_BASE}/drafts/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'x-user-id': user.id,
+        'x-user-role': user.role
+      }
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Unable to delete draft');
+    }
+    return true;
   },
 
   // Categories
