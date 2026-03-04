@@ -172,6 +172,54 @@ Instead:
 
 So Redis pub/sub is a transport mechanism owned by the Socket.IO adapter.
 
+Important clarification:
+
+- Redis is **not** used as a manual "socket room registry" in this app.
+- Room membership still lives inside Socket.IO (`socket.join("user:<id>")`).
+- Redis adapter only bridges room emits across nodes.
+
+Cluster behavior example:
+
+- Node A local room map might have `user:1 -> {socketA1}`
+- Node B local room map might have `user:1 -> {socketB7}`
+- these room maps are **not merged** into one global socket list
+- when Node A emits to `user:1`, adapter publishes a room-targeted packet via Redis
+- every node receives packet and checks its **own local** `user:1` room
+- nodes with matching local sockets deliver; nodes without matches ignore
+
+## 4.1 Redis usage by feature (what Redis is for)
+
+- **Socket fanout across nodes**: Socket.IO adapter pub/sub transport for `io.to("user:<id>").emit(...)`.
+- **Presence**: Redis TTL key `chat:presence:<userId>` stores short-lived online heartbeat state.
+- **Typing**: Redis TTL keys store short-lived typing state:
+  - `chat:typing:<conversationId>:<userId>`
+  - `chat:typing:<userId> -> <conversationId>` (active conversation pointer)
+- **Conversations/messages API cache**: Redis stores JSON cache entries with TTL for list/history endpoints.
+
+### 4.2 Who reads/writes Redis (and who does not)
+
+- Frontend never connects to Redis directly.
+- Backend service/socket layers are the only Redis readers/writers.
+- Frontend gets Redis-backed results indirectly through:
+  - REST responses (conversation/message cache hits)
+  - socket snapshot callback (`presence_subscribe`)
+  - socket push events (`presence_changed`, `typing_changed`)
+
+### 4.3 Redis role matrix by feature
+
+| Feature | Redis used for | Who writes Redis | Who reads Redis | If Redis is unavailable |
+|---|---|---|---|---|
+| Socket message/presence/typing fanout across pods | Socket.IO adapter pub/sub transport | Socket.IO adapter internals | Socket.IO adapter internals | Same-node emits still work; cross-node delivery degrades |
+| Presence | TTL heartbeat key `chat:presence:<userId>` | backend socket heartbeat on connect/interval | backend on `presence_subscribe` snapshot | Falls back to local in-memory socket presence only |
+| Typing | TTL keys for active typers and active conversation pointer | backend on `typing` start/stop, send, disconnect | backend on `presence_subscribe` snapshot | Live push still works; snapshot quality degrades |
+| Conversations/messages API cache | JSON cache with TTL and invalidation | backend conversation/message services | backend conversation/message services | Falls back to DB reads/writes |
+
+Without Redis:
+
+- same-node socket delivery still works
+- cross-node fanout degrades
+- typing/presence snapshot quality degrades (event push may still work on same node)
+
 ---
 
 ## 5) Media upload/download (S3 direct path)
@@ -252,6 +300,14 @@ Presence snapshot:
   - `presenceByUserId`
   - `typingUserIds`
 
+When frontend calls `presence_subscribe` (through `requestConversationPresence`):
+
+- when selected conversation changes
+- when socket transitions to connected/reconnected
+- when browser window regains focus
+
+There is no periodic 15s polling loop now.
+
 ---
 
 ## 7) Typing workflow (Redis TTL + event push + client-side expiry)
@@ -264,6 +320,12 @@ Typing keys:
 ## 7.1 Start typing
 
 Client emits `typing { conversationId, isTyping: true }`.
+
+Client-side refresh behavior:
+
+- on entering typing state, client emits `typing=true` immediately
+- while user continues typing, client sends throttled refresh emits (about every 2.5s) to keep Redis typing TTL alive
+- on idle/send/switch/disconnect, client emits `typing=false`
 
 Backend:
 
@@ -300,7 +362,26 @@ Instead:
 So:
 
 - Redis TTL protects shared state correctness across pods
+- client refresh emits keep typing TTL alive while user is actively typing
 - frontend timer protects UI from stale typing indicators without backend polling
+
+Important:
+
+- frontend never reads Redis directly
+- backend reads/writes Redis typing keys
+- frontend only receives socket events + snapshot results from backend
+- backend does not poll Redis every few seconds to push typing updates; updates are event-driven
+
+## 7.4 Typing behavior when Redis is unavailable
+
+Typing still works in degraded mode:
+
+1. sender emits `typing`
+2. backend emits `typing_changed` to peers
+3. receiver UI uses `expiresInSeconds` to auto-clear stale typing locally
+
+In no-Redis mode, if user B opens a conversation after user A already emitted `typing=true`,
+B can miss that current typing state until a fresh `typing_changed` event is sent.
 
 ---
 
@@ -328,9 +409,19 @@ This is how sockets on different nodes stay consistent without duplicate DB writ
 ## 9) Reliability and fallback behavior
 
 - If Redis adapter is down, cross-node fanout is degraded; same-node delivery still works.
-- If Redis key-value is unavailable, presence/typing may degrade to partial in-memory behavior.
+- If Redis key-value is unavailable, presence/typing degrade to partial in-memory + event-only behavior:
+  - live push events can still update UI
+  - snapshot recovery (`typingUserIds`) is weaker
+  - users joining mid-typing may miss existing typing state
 - Message durability remains because message writes are committed to DB.
 - Reconnect path in frontend re-syncs conversations/messages to recover missed live events.
+
+Quick mental model:
+
+- Socket.IO push = immediate UI updates
+- Redis TTL keys = shared short-lived truth and snapshot recovery
+- frontend timers = stale-indicator safety net
+- DB = durable source of truth
 
 ---
 
@@ -354,3 +445,46 @@ Recommended frontend handling:
 
 - treat socket events as immediate UI updates
 - run REST/message sync on reconnect for eventual consistency
+
+---
+
+## 11) FAQ (from implementation review)
+
+Q: Is Redis only storing socket rooms?
+A: No. Socket rooms are managed by Socket.IO (`socket.join("user:<id>")`). Redis is used for:
+- Socket.IO adapter pub/sub across nodes
+- Presence TTL keys
+- Typing TTL keys
+- API cache (conversations/messages)
+
+Q: If user sockets are on different nodes, does Redis build one shared room with all sockets?
+A: No. Each node keeps only local room membership. Redis adapter broadcasts room-targeted emits, and each node checks/delivers to its own local sockets in that room.
+
+Q: Does adapter publish userId and then each node checks local sockets?
+A: Conceptually yes. The adapter publishes a room-targeted packet (for `user:<id>`) and each node's Socket.IO layer matches that room locally and emits to matching sockets.
+
+Q: Why store typing/presence keys at all? Why not only push socket events?
+A: Push-only works in ideal/single-node cases, but keys add:
+- snapshot recovery after reconnect/tab focus/chat switch
+- shared state across pods
+- TTL-based cleanup for missed stop/disconnect events
+
+Q: Does frontend read Redis directly when typing TTL expires?
+A: No. Frontend never connects to Redis. It uses socket events and local timers. Backend reads Redis for snapshots.
+
+Q: Who actually reads the cache/keys?
+A: Backend only.
+- API services read/write conversation/message caches.
+- Socket handlers read/write presence/typing keys.
+
+Q: Does backend poll Redis every few seconds and keep pushing typing updates?
+A: Backend does not poll Redis. Updates are event-driven (`typing`, `send_message`, `disconnect`). The client may send throttled `typing=true` refresh emits while actively typing to keep TTL valid.
+
+Q: Without Redis, does typing still work?
+A: Yes, degraded mode:
+- live `typing_changed` push still works (especially same-node)
+- receiver still uses `expiresInSeconds` timer to auto-clear stale UI
+- but snapshot reconstruction is weaker
+
+Q: Without Redis, if B opens conversation while A is already typing, will B miss it?
+A: Possibly yes. If B missed the earlier `typing=true` push, no Redis snapshot source exists to reconstruct it; B sees typing again on next fresh typing event.
