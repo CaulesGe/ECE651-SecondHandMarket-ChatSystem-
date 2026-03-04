@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const MESSAGE_PAGE_SIZE = 100;
+const TYPING_REFRESH_INTERVAL_MS = 2500;
 
 export default function ChatPage() {
   const { user, isLoggedIn } = useAuth();
@@ -52,6 +53,7 @@ export default function ChatPage() {
   const chatMessagesContainerRef = useRef(null);
   const typingIdleTimeoutRef = useRef(null);
   const activeTypingConversationIdRef = useRef(null);
+  const typingRefreshIntervalRef = useRef(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -186,6 +188,22 @@ export default function ChatPage() {
     if (message.type === 'image') return '[Image]';
     if (message.type === 'video') return '[Video]';
     return message.content || 'Message';
+  };
+
+  const clearTypingRefreshInterval = () => {
+    if (typingRefreshIntervalRef.current) {
+      clearInterval(typingRefreshIntervalRef.current);
+      typingRefreshIntervalRef.current = null;
+    }
+  };
+
+  const startTypingRefreshInterval = (conversationId) => {
+    clearTypingRefreshInterval();
+    if (!conversationId) return;
+    typingRefreshIntervalRef.current = setInterval(() => {
+      if (activeTypingConversationIdRef.current !== conversationId) return;
+      setTypingState(conversationId, true).catch(() => {});
+    }, TYPING_REFRESH_INTERVAL_MS);
   };
 
   const getSenderName = (message) => {
@@ -329,6 +347,7 @@ export default function ChatPage() {
       setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
       activeTypingConversationIdRef.current = null;
     }
+    clearTypingRefreshInterval();
     // clear the timeout to clear the typing state for the conversation and user
     if (typingIdleTimeoutRef.current) {
       clearTimeout(typingIdleTimeoutRef.current);
@@ -473,6 +492,9 @@ export default function ChatPage() {
         // set the active typing conversation id to the selected chat
         activeTypingConversationIdRef.current = selectedChat;
         setTypingState(selectedChat, true).catch(() => {});
+        startTypingRefreshInterval(selectedChat);
+      } else if (!typingRefreshIntervalRef.current) {
+        startTypingRefreshInterval(selectedChat);
       }
       // set the timeout to clear the typing state for the conversation and user
       if (typingIdleTimeoutRef.current) clearTimeout(typingIdleTimeoutRef.current);
@@ -480,6 +502,7 @@ export default function ChatPage() {
         if (!activeTypingConversationIdRef.current) return;
         setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
         activeTypingConversationIdRef.current = null;
+        clearTypingRefreshInterval();
       }, 1600);
       return undefined;
     }
@@ -488,6 +511,7 @@ export default function ChatPage() {
       setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
       activeTypingConversationIdRef.current = null;
     }
+    clearTypingRefreshInterval();
     if (typingIdleTimeoutRef.current) {
       clearTimeout(typingIdleTimeoutRef.current);
       typingIdleTimeoutRef.current = null;
@@ -643,6 +667,7 @@ export default function ChatPage() {
       clearTimeout(typingIdleTimeoutRef.current);
       typingIdleTimeoutRef.current = null;
     }
+    clearTypingRefreshInterval();
     if (activeTypingConversationIdRef.current) {
       setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
       activeTypingConversationIdRef.current = null;
@@ -660,7 +685,7 @@ export default function ChatPage() {
             <h2 className="chat-sidebar-title">
               Messages {socketConnected ? '' : '(offline)'}
             </h2>
-            <div className="chat-list">
+            <div className="chat-list" data-testid="chat-list">
               {loadingConversations ? (
                 <div className="chat-item-time">Loading conversations...</div>
               ) : conversations.length === 0 ? (
@@ -675,6 +700,7 @@ export default function ChatPage() {
                   return (
                     <button
                       key={conversation.id}
+                      data-testid={`chat-item-${conversation.id}`}
                       className={`chat-item ${selectedChat === conversation.id ? 'active' : ''}`}
                       onClick={() => setSelectedChat(conversation.id)}
                     >
@@ -703,7 +729,7 @@ export default function ChatPage() {
                 {currentConversation ? (currentOtherParticipant?.name || `Conversation ${currentConversation.id.slice(0, 6)}`) : 'Messages'}
               </h2>
               {currentConversation && currentOtherParticipant && (
-                <div className="chat-presence-status" aria-live="polite">
+                <div className="chat-presence-status" aria-live="polite" data-testid="chat-presence-status">
                   {typingUserNames.length > 0
                     ? `${typingUserNames.join(', ')} ${typingUserNames.length > 1 ? 'are' : 'is'} typing...`
                     : (isOtherParticipantOnline ? 'Online' : 'Offline')}
@@ -728,7 +754,12 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Container: Scrollable area displaying all messages in the conv */}
-            <div ref={chatMessagesContainerRef} className="chat-messages" onScroll={handleMessagesScroll}>
+            <div
+              ref={chatMessagesContainerRef}
+              className="chat-messages"
+              onScroll={handleMessagesScroll}
+              data-testid="chat-messages"
+            >
               {loadingOlderMessages && (
                 <div className="chat-item-time">Loading older messages...</div>
               )}
@@ -745,6 +776,7 @@ export default function ChatPage() {
                 return (
                 <div
                   key={message.id}
+                  data-testid={`message-bubble-${message.id}`}
                   className="message-bubble"
                   onContextMenu={(e) => handleMessageContextMenu(e, message)}
                 >
@@ -846,6 +878,7 @@ export default function ChatPage() {
             {withdrawContextMenu && (
               <div
                 className="message-context-menu"
+                data-testid="message-context-menu"
                 style={{ top: `${withdrawContextMenu.y}px`, left: `${withdrawContextMenu.x}px` }}
                 onClick={(e) => e.stopPropagation()}
                 role="menu"
@@ -853,6 +886,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   className="message-context-menu-item"
+                  data-testid="withdraw-action"
                   onClick={handleWithdrawFromContextMenu}
                 >
                   Withdraw
@@ -909,6 +943,7 @@ export default function ChatPage() {
               )}
               <input
                 className="chat-input"
+                data-testid="chat-input"
                 type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -919,6 +954,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 className="btn btn-primary btn-sm chat-send-btn"
+                data-testid="chat-send-btn"
                 disabled={!canSendMessage || (!draft.trim() && pendingFiles.length === 0)}
                 aria-label="Send message"
               >
@@ -929,7 +965,7 @@ export default function ChatPage() {
                 Send
               </button>
             </form>
-            {composerError ? <div className="chat-composer-error">{composerError}</div> : null}
+            {composerError ? <div className="chat-composer-error" data-testid="chat-composer-error">{composerError}</div> : null}
           </main>
         </div>
       </div>
