@@ -9,9 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
     "test": "vitest",
-    "test:run": "vitest run",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "react": "^18.3.1",
