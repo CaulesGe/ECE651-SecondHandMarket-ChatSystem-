@@ -5,6 +5,8 @@ import { useAuth } from './AuthContext';
 
 const ChatContext = createContext(null);
 const CHAT_MEDIA_MAX_SIZE_BYTES = 100 * 1024 * 1024;
+const SOCKET_SEND_ACK_TIMEOUT_MS = 4000;
+const isDev = import.meta.env.DEV;
 
 export function ChatProvider({ children }) {
   const { user, isLoggedIn } = useAuth();
@@ -15,8 +17,30 @@ export function ChatProvider({ children }) {
   const [presenceByUserId, setPresenceByUserId] = useState({});
   const [typingByConversation, setTypingByConversation] = useState({});
   const socketRef = useRef(null);
+  const sendPathDebugRef = useRef({
+    total: 0,
+    socket: 0,
+    fallbackHttp: 0,
+    lastFallbackReason: null
+  });
   const typingExpiryTimersRef = useRef(new Map()); // used to clear the typing state for the conversation and user
   const socketServerUrl = import.meta.env.DEV ? 'http://localhost:3000' : undefined;
+
+  const incrementSendDebugCounter = useCallback((path, reason = null) => {
+    const next = { ...sendPathDebugRef.current };
+    next.total += 1;
+    if (path === 'socket') next.socket += 1;
+    if (path === 'fallbackHttp') {
+      next.fallbackHttp += 1;
+      next.lastFallbackReason = reason || 'unknown';
+    }
+    sendPathDebugRef.current = next;
+    if (isDev && typeof window !== 'undefined') {
+      window.__chatSendDebug = next;
+      // Keeps local debugging cheap and visible in browser console.
+      console.debug('[chat-debug] send-path', next);
+    }
+  }, []);
 
    // Load all conversations for the authenticated user.
   const loadConversations = useCallback(async () => {
@@ -92,24 +116,42 @@ export function ChatProvider({ children }) {
     const clientMessageId = generateClientMessageId();
 
     const socket = socketRef.current;
+    const payload = { conversationId, type, content, mediaObjectKey, clientMessageId, recipientId };
+    let deliveredViaSocket = false;
     if (socket?.connected) {
-      await new Promise((resolve, reject) => {
-        socket.emit(
-          'send_message',
-          { conversationId, type, content, mediaObjectKey, clientMessageId, recipientId },
-          (ack) => {
+      try {
+        await new Promise((resolve, reject) => {
+          let settled = false;
+          const timeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('Socket acknowledgement timeout'));
+          }, SOCKET_SEND_ACK_TIMEOUT_MS);
+          socket.emit('send_message', payload, (ack) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
             if (ack?.error) reject(new Error(ack.error));
             else resolve(ack);
-          }
-        );
-      });
-    } else {
+          });
+        });
+        deliveredViaSocket = true;
+        incrementSendDebugCounter('socket');
+      } catch (_error) {
+        // Fall back to HTTP if socket delivery is unhealthy.
+        deliveredViaSocket = false;
+        incrementSendDebugCounter('fallbackHttp', _error?.message || 'socket emit failed');
+      }
+    }
+    if (!deliveredViaSocket) {
+      if (!socket?.connected) {
+        incrementSendDebugCounter('fallbackHttp', 'socket not connected');
+      }
       await api.sendMessage(conversationId, type, content, mediaObjectKey, clientMessageId, user);
     }
 
     // Sync latest data after send for consistent local state.
-    await loadMessages(conversationId);
-    await loadConversations();
+    await Promise.all([loadMessages(conversationId), loadConversations()]);
   }, [isLoggedIn, user, generateClientMessageId, loadMessages, loadConversations]);
 
   // Withdraw own message (<= 2 minutes) via WebSocket when connected, otherwise HTTP.
@@ -206,8 +248,15 @@ export function ChatProvider({ children }) {
     if (!conversationId) return null;
     const socket = socketRef.current;
     if (!socket?.connected) return null;
+
+    // ACK can be swallowed when the Redis adapter is active, so add a timeout.
+    const PRESENCE_ACK_TIMEOUT_MS = 3000;
     const snapshot = await new Promise((resolve) => {
-      socket.emit('presence_subscribe', { conversationId }, (ack) => resolve(ack || null));
+      const timer = setTimeout(() => resolve(null), PRESENCE_ACK_TIMEOUT_MS);
+      socket.emit('presence_subscribe', { conversationId }, (ack) => {
+        clearTimeout(timer);
+        resolve(ack || null);
+      });
     });
     if (!snapshot || snapshot.error) return null;
 
@@ -311,6 +360,10 @@ export function ChatProvider({ children }) {
 
     socket.on('typing_changed', ({ conversationId, userId: typingUserId, isTyping, expiresInSeconds }) => {
       if (!conversationId || !typingUserId) return;
+      if (isTyping) {
+        // A user who is actively typing is online even if a presence event was missed.
+        setPresenceByUserId((prev) => ({ ...prev, [typingUserId]: true }));
+      }
       const timerKey = `${conversationId}:${typingUserId}`;
       const existingTimer = typingExpiryTimersRef.current.get(timerKey);
       if (existingTimer) {
@@ -381,6 +434,7 @@ export function ChatProvider({ children }) {
       signMediaDownload,
       markAsRead,
       getMessagesForConversation,
+      getSendPathDebug: () => sendPathDebugRef.current,
       requestConversationPresence,
       setTypingState,
       getPresenceForUser,

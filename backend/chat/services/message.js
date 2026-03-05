@@ -13,6 +13,7 @@ import {
 // Instantiate Prisma once for the chat service module.
 const prisma = new PrismaClient();
 const WITHDRAW_WINDOW_MS = 2 * 60 * 1000;
+const CACHE_INVALIDATION_MAX_WAIT_MS = 300;
 
 // Supported message types.
 const ALLOWED_TYPES = new Set(["text", "image", "video"]);
@@ -33,6 +34,17 @@ const invalidateConversationAndMessageCaches = async (conversationId) => {
     invalidateConversationCachesForUsers(participantUserIds),
     invalidateMessageCachesForConversation(conversationId)
   ]);
+};
+
+const invalidateCachesBestEffort = (conversationId) => {
+  if (!conversationId) return;
+  
+  Promise.race([
+    invalidateConversationAndMessageCaches(conversationId),
+    new Promise((resolve) => setTimeout(resolve, CACHE_INVALIDATION_MAX_WAIT_MS))
+  ]).catch((error) => {
+    console.warn("[chat-message] cache invalidation skipped:", error?.message || error);
+  });
 };
 
 // Validate message payload and return a normalized shape.
@@ -100,8 +112,8 @@ export const sendMessage = async ({
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     });
-    // invalidate the cached conversations and messages for the conversation because a new message was sent
-    await invalidateConversationAndMessageCaches(conversationId);
+    // Keep message send latency bounded even if Redis/cache is unstable.
+    invalidateCachesBestEffort(conversationId);
 
     return message;
   } catch (error) {
@@ -158,8 +170,8 @@ export const withdrawMessage = async ({ messageId, userId }) => {
     where: { id: existing.conversationId },
     data: { updatedAt: new Date() }
   });
-  // invalidate the cached conversations and messages for the conversation because a message was withdrawn
-  await invalidateConversationAndMessageCaches(existing.conversationId);
+  // Keep withdraw latency bounded even if Redis/cache is unstable.
+  invalidateCachesBestEffort(existing.conversationId);
 
   return updated;
 };

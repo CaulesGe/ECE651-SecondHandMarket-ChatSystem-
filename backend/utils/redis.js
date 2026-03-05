@@ -26,6 +26,7 @@ const getRedisUrl = () => {
 };
 
 export const isRedisEnabled = () => toBool(process.env.REDIS_ENABLED, false);
+const isClientOpen = (client) => Boolean(client && client.isOpen);
 
 export const initRedis = async () => {
   if (redisInitAttempted) {
@@ -53,15 +54,19 @@ export const initRedis = async () => {
 
   client.on("error", (error) => {
     // Keep the server running if redis is temporarily down.
+    redisAvailable = false;
     console.warn("[redis] client error:", error?.message || error);
   });
   client.on("reconnecting", () => {
+    redisAvailable = false;
     console.warn("[redis] reconnecting...");
   });
   client.on("ready", () => {
+    redisAvailable = true;
     console.log("[redis] ready");
   });
   client.on("end", () => {
+    redisAvailable = false;
     console.warn("[redis] connection closed");
   });
 
@@ -86,7 +91,7 @@ export const initRedis = async () => {
 };
 
 export const getRedisClient = () => redisClient;
-export const isRedisAvailable = () => redisAvailable;
+export const isRedisAvailable = () => redisAvailable && isClientOpen(redisClient);
 
 export const closeRedis = async () => {
   if (!redisClient) return;

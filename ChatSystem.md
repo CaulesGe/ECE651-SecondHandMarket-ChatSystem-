@@ -4,12 +4,63 @@ This document describes the production workflow for chat in this project, with e
 
 It covers:
 
+- how JWT auth token is issued, stored, and sent by frontend
 - when/where backend sockets are created
 - why user-based rooms are used instead of conversation rooms
 - how message send and fanout work across pods
 - how media upload/download works with S3 signed URLs
 - how presence and typing are stored and pushed
+- how mark-as-read works and where unread counts are computed
 - what Redis is responsible for vs what Socket.IO handles
+
+---
+
+## 0) Auth + read/unread data flow
+
+## 0.1 Where `Authorization: Bearer <token>` comes from
+
+Frontend does not mint JWT locally. Token source is backend login response.
+
+Flow:
+
+1. `POST /api/auth/login` validates credentials.
+2. Backend signs JWT (`jwt.sign(...)`) and returns `{ user, token }`.
+3. Frontend login API merges token into user object (`user.token = token`) for compatibility.
+4. `AuthContext.login(user)` stores that user object in `localStorage` (`secondhand_user`).
+5. Later chat API calls read `user.token` and send:
+   - `Authorization: Bearer <token>`
+
+Notes:
+
+- Chat backend auth middleware verifies this JWT first.
+- If token is missing/invalid, this project currently has a legacy fallback via identity headers.
+
+## 0.2 Mark read + unread count model
+
+Source of truth is backend DB/service logic; frontend only triggers updates and renders returned counts.
+
+Mark-read flow:
+
+1. User opens/switches conversation in `ChatPage`.
+2. Frontend loads messages, takes latest message id, then calls:
+   - `POST /chat/conversations/:id/read` with `lastReadMessageId`.
+3. Backend upserts `ConversationReadState` for `(conversationId, userId)`:
+   - `lastReadMessageId`
+   - `lastReadMessageCreatedAt`
+   - `readAt`
+
+Unread count computation flow:
+
+1. Frontend requests `GET /chat/conversations`.
+2. Backend computes `unreadCount` per conversation:
+   - only messages from others (`senderId != currentUserId`)
+   - only messages newer than `lastReadMessageCreatedAt` (if exists)
+3. Backend returns conversation list with `unreadCount`.
+4. Frontend sums all `unreadCount` values for global chat badge.
+
+Why compare against `lastReadMessageCreatedAt` (message sent time) instead of `readAt`:
+
+- It correctly counts messages sent after the last read message, even if user marked read later.
 
 ---
 
@@ -285,6 +336,11 @@ On socket connect:
 1. set presence key with TTL
 2. start heartbeat interval to refresh key
 3. notify peers with `presence_changed { userId, isOnline: true }`
+4. push current peer presence TO the newly connected user:
+   - backend queries all conversation peers for the connecting user
+   - backend reads presence keys for those peers via `getPresenceByUserIds`
+   - backend emits `presence_changed { userId: <peerId>, isOnline }` directly to the connecting socket for each peer
+   - this ensures the new user immediately knows who is already online, without relying on the `presence_subscribe` ACK (see 6.3)
 
 On disconnect:
 
@@ -306,7 +362,88 @@ When frontend calls `presence_subscribe` (through `requestConversationPresence`)
 - when socket transitions to connected/reconnected
 - when browser window regains focus
 
+The `presence_subscribe` ACK has a client-side timeout (3 s). If the ACK is not received in time the promise resolves with `null` and the client falls back to presence data from `presence_changed` events. See 6.3 for why this timeout exists.
+
 There is no periodic 15s polling loop now.
+
+### 6.1 Immediate offline update (without reopening conversation)
+
+Yes, user A can see user B become offline immediately while staying in the same open chat.
+
+Flow:
+
+1. B disconnects (tab close/network drop/app background disconnect).
+2. B's backend socket handler runs `disconnect`.
+3. Backend removes that socket from local `userSockets`.
+4. If B has no remaining sockets, backend calls peer notify:
+   - emits `presence_changed { userId: B, isOnline: false }`
+   - targets peers' user rooms (`user:<peerId>`)
+5. A's frontend already listening on socket receives `presence_changed`.
+6. A updates local `presenceByUserId[B] = false` and header renders `Offline` immediately.
+
+So this immediate change is push-driven by `presence_changed`, not by reopening the conversation.
+
+### 6.2 Why presence relies on `presence_changed` push, not `presence_subscribe` ACK
+
+When the Redis adapter is active, Socket.IO acknowledgement callbacks for server-side `async` handlers can be silently dropped in certain edge cases (e.g. timing between adapter pub/sub and the callback serialization). This was observed in production-like testing: the backend logged a successful response, but the client ACK callback never fired, leaving the `requestConversationPresence` promise hanging indefinitely.
+
+Because of this, the system treats `presence_changed` events as the **primary** channel for presence updates, not the `presence_subscribe` ACK:
+
+1. **On connect push (backend → connecting client):**
+   When a user connects, the backend immediately reads peer presence from Redis and emits individual `presence_changed` events directly to the connecting socket. This is a point-to-point `socket.emit` (not a room broadcast), which is not affected by the adapter ACK issue.
+
+2. **Peer connect/disconnect push (backend → existing peers):**
+   When a user connects or disconnects, the backend emits `presence_changed` to all peer user rooms. This uses the adapter for cross-node delivery, which works reliably for regular events.
+
+3. **Snapshot ACK (best-effort fallback):**
+   The `presence_subscribe` ACK is still emitted by the backend and processed by the client when it arrives. The client applies a 3-second timeout so a lost ACK never blocks the UI. When it does arrive, it merges into state as a consistency check.
+
+Result: presence is accurate on first load and updates in real time, even when the ACK channel is unreliable.
+
+### 6.3 Role of Redis in presence
+
+Redis has two different roles here:
+
+1. **Cross-node delivery transport (Socket.IO adapter)**  
+   - backend emits to room `user:<peerId>`
+   - adapter publishes packet through Redis pub/sub
+   - peer node(s) receive and deliver to local sockets  
+   This is what makes A still get B's offline event when A and B are connected to different pods.
+
+2. **Presence snapshot state (TTL key-value)**  
+   - backend writes heartbeat key: `chat:presence:<userId> = "1"` with TTL
+   - backend reads these keys on `presence_subscribe` to build `presenceByUserId` snapshot  
+   This helps recover state on reconnect/focus/conversation switch and avoids stale online state.
+
+Important distinction:
+
+- `presence_changed` = real-time delta push (immediate UI updates)
+- `presence_subscribe` = snapshot sync (state recovery)
+- frontend never reads Redis directly; backend is the only Redis reader/writer
+
+### 6.4 Presence behavior without Redis
+
+Presence still works, but in degraded mode.
+
+What still works:
+
+- backend can still emit `presence_changed` to user rooms
+- frontend still updates immediately when it receives push events
+- same-node users (both sockets on the same backend instance) continue to work well
+
+What degrades:
+
+- cross-node fanout is weaker without the Redis adapter
+  - if A is on node1 and B is on node2, B's offline event may not reach A
+- snapshot quality is weaker
+  - backend cannot read Redis heartbeat keys on `presence_subscribe`
+  - it falls back to local in-memory socket map (`userSockets`) on the current node only
+  - that local map cannot see sockets connected to other nodes
+
+Practical impact:
+
+- in single-node dev: presence usually behaves normally
+- in multi-node deployment without Redis: online/offline can appear inconsistent across pods
 
 ---
 
@@ -488,3 +625,21 @@ A: Yes, degraded mode:
 
 Q: Without Redis, if B opens conversation while A is already typing, will B miss it?
 A: Possibly yes. If B missed the earlier `typing=true` push, no Redis snapshot source exists to reconstruct it; B sees typing again on next fresh typing event.
+
+Q: Why does the `presence_subscribe` ACK sometimes not arrive on the client?
+A: When the Redis adapter is active, Socket.IO acknowledgement callbacks for async server handlers can be silently dropped in edge cases. The backend successfully calls `callback(response)` but the client never receives it. This is a known subtle interaction between the adapter pub/sub layer and the ACK serialization path. The system mitigates this by:
+- pushing `presence_changed` events directly to the connecting socket on connect (primary channel)
+- applying a 3-second client-side timeout on the ACK promise so it never blocks the UI
+- treating the ACK as a best-effort consistency check rather than the sole presence source
+
+Q: If B connects after A is already online, how does B know A is online?
+A: On B's socket connect, the backend reads A's presence key from Redis and emits `presence_changed { userId: A, isOnline: true }` directly to B's socket. This is a point-to-point emit, not a room broadcast, so it is not affected by the adapter ACK issue. B's frontend receives this event and updates `presenceByUserId[A] = true` immediately.
+
+Q: Where does frontend `user.token` come from?
+A: From backend login response:
+- backend `/api/auth/login` returns `{ user, token }`
+- frontend stores token on user object and persists user in `localStorage`
+- chat API client reads `user.token` to send `Authorization: Bearer <token>`
+
+Q: Does ChatPage compute unread counts itself?
+A: No. ChatPage triggers mark-read and renders conversation data. Backend computes `unreadCount` per conversation in chat service logic and returns it via `GET /chat/conversations`; frontend only sums/display counts.

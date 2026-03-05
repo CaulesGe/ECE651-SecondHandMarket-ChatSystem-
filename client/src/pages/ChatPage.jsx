@@ -7,6 +7,7 @@ import Footer from '../components/Footer';
 
 const MESSAGE_PAGE_SIZE = 100;
 const TYPING_REFRESH_INTERVAL_MS = 2500;
+const PRESENCE_REFRESH_INTERVAL_MS = 15000;
 
 export default function ChatPage() {
   const { user, isLoggedIn } = useAuth();
@@ -108,8 +109,9 @@ export default function ChatPage() {
     : false;
   const canSendMessage = Boolean(currentConversation);
   const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
-  const currentOtherParticipant = currentConversation?.participants?.find((participant) => participant.userId !== user?.id)?.user || null;
-  const isOtherParticipantOnline = currentOtherParticipant ? getPresenceForUser(currentOtherParticipant.id) : false;
+  const currentOtherParticipantEntry = currentConversation?.participants?.find((participant) => participant.userId !== user?.id);
+  const currentOtherParticipant = currentOtherParticipantEntry?.user || null;
+  const isOtherParticipantOnline = currentOtherParticipant ? getPresenceForUser(currentOtherParticipantEntry.userId) : false;
   // get the typing users for the conversation, update when typing_changed event is received
   const typingUserNames = currentConversation
     ? getTypingUsersForConversation(currentConversation.id)
@@ -338,6 +340,7 @@ export default function ChatPage() {
     if (!canSendMessage || !currentConversation) return;
 
     const text = draft.trim();
+    const draftBeforeSend = draft;
     const filesToUpload = pendingFiles;
     if (!text && filesToUpload.length === 0) return;
 
@@ -357,16 +360,20 @@ export default function ChatPage() {
 
     try {
       if (text) {
+        // Clear immediately for responsive UX, restore if send fails.
+        setDraft('');
         await sendMessageRealtime({
           conversationId: currentConversation.id,
           type: 'text',
           content: text,
           recipientId
         });
-        setDraft('');
         setTimeout(scrollToBottom, 0);
       }
     } catch (error) {
+      if (text) {
+        setDraft(draftBeforeSend);
+      }
       setComposerError(error?.message || 'Failed to send message.');
       return;
     }
@@ -475,6 +482,15 @@ export default function ChatPage() {
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+  }, [selectedChat, socketConnected, requestConversationPresence]);
+
+  // refresh the presence and typing state for the conversation every 15 seconds
+  useEffect(() => {
+    if (!selectedChat || !socketConnected) return undefined;
+    const intervalId = setInterval(() => {
+      requestConversationPresence(selectedChat).catch(() => {});
+    }, PRESENCE_REFRESH_INTERVAL_MS);
+    return () => clearInterval(intervalId);
   }, [selectedChat, socketConnected, requestConversationPresence]);
 
   // set the typing state for the conversation and user when the user starts typing

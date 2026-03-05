@@ -279,6 +279,33 @@ export const initChatSocket = (httpServer) => {
     // publish the presence heartbeat
     publishPresenceHeartbeat(userId).catch(() => {});
     emitPresenceChangedToPeers(userId, true).catch(() => {});
+
+    // Push current peer presence TO the newly connected user so they
+    // don't have to rely on the presence_subscribe ACK (which can be
+    // swallowed by the Redis adapter in some edge cases).
+    (async () => {
+      try {
+        const memberships = await prisma.conversationParticipant.findMany({
+          where: { userId },
+          select: { conversationId: true }
+        });
+        const conversationIds = [...new Set(memberships.map((m) => m.conversationId))];
+        if (conversationIds.length === 0) return;
+        const peers = await prisma.conversationParticipant.findMany({
+          where: { conversationId: { in: conversationIds }, userId: { not: userId } },
+          select: { userId: true }
+        });
+        const peerUserIds = [...new Set(peers.map((p) => p.userId))];
+        if (peerUserIds.length === 0) return;
+        const presenceMap = await getPresenceByUserIds(peerUserIds);
+        for (const [peerUserId, isOnline] of Object.entries(presenceMap)) {
+          socket.emit("presence_changed", { userId: peerUserId, isOnline: Boolean(isOnline) });
+        }
+      } catch (err) {
+        console.warn("[chat-socket] failed to push peer presence on connect:", err?.message || err);
+      }
+    })();
+
     // set the presence heartbeat for each interval
     const presenceHeartbeatInterval = setInterval(() => {
       publishPresenceHeartbeat(userId).catch(() => {});
@@ -450,6 +477,12 @@ export const tryAttachRedisAdapter = async (io) => {
     // this is used to ensure that the messages are delivered to all replicas 
     const pubClient = redisClient.duplicate();
     const subClient = redisClient.duplicate();
+    pubClient.on("error", (error) => {
+      console.warn("[chat-socket] redis adapter pubClient error:", error?.message || error);
+    });
+    subClient.on("error", (error) => {
+      console.warn("[chat-socket] redis adapter subClient error:", error?.message || error);
+    });
     await Promise.all([pubClient.connect(), subClient.connect()]);
     io.adapter(createAdapter(pubClient, subClient));
     console.log("[chat-socket] redis adapter enabled");
