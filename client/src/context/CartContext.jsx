@@ -41,6 +41,14 @@ export function CartProvider({ children }) {
     setCart([]);
   };
 
+  const updateRecentlyViewedItem = (itemId, updates) => {
+    setRecentlyViewed(prev =>
+      prev.map(item =>
+        item.id === itemId ? { ...item, ...updates } : item
+      )
+    );
+  };
+
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const cartCount = cart.length;
 
@@ -65,7 +73,8 @@ export function CartProvider({ children }) {
       cartCount,
       recentlyViewed,
       addToRecentlyViewed,
-      clearRecentlyViewed
+      clearRecentlyViewed,
+      updateRecentlyViewedItem
     }}>
       {children}
     </CartContext.Provider>

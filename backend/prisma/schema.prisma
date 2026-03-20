@@ -19,6 +19,7 @@ model User {
   chatMessages Message[]
   chatReadStates ConversationReadState[]
   drafts       Draft[]
+  favorites             Favorite[]
   emailVerified       Boolean  @default(false)
   verificationToken   String?  @unique
   verificationExpires DateTime?
@@ -36,6 +37,21 @@ model Goods {
   sellerName  String
   location    String
   listedAt    DateTime
+  favorites   Favorite[]
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  goodsId   String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goods     Goods    @relation(fields: [goodsId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, goodsId])
+  @@index([userId, createdAt])
+  @@index([goodsId])
 }
 
 model Draft {

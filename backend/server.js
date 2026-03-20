@@ -213,6 +213,122 @@ const toDraftResponse = (draft) => ({
   images: parseImageList(draft.images)
 });
 
+// Build a set of favorited goods IDs for a user to optimize response shaping
+const buildFavoriteSet = async (userId) => {
+  if (!userId) return new Set();
+
+  const favorites = await prisma.favorite.findMany({
+    where: { userId },
+    select: { goodsId: true }
+  });
+
+  return new Set(favorites.map((item) => item.goodsId));
+};
+
+const toGoodsResponse = (item, favoriteSet = new Set()) => ({
+  ...item,
+  images: parseImageList(item.images),
+  isFavorited: favoriteSet.has(item.id)
+});
+
+const normalizeText = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const tokenize = (value) => {
+  const stopWords = new Set([
+    "the", "a", "an", "and", "or", "for", "with", "to", "of", "in", "on",
+    "at", "by", "new", "good", "like"
+  ]);
+
+  return normalizeText(value)
+    .split(" ")
+    .filter((word) => word && word.length > 1 && !stopWords.has(word));
+};
+
+// Compute a personalized recommendation score for a candidate item based on user's favorite items
+// Score is based on category matches, token overlaps in title/description/category, price proximity, shopping cart and recency of listing
+const computePersonalRecommendationScore = (candidate, favoriteItems, cartItems = []) => {
+  let score = 0;
+
+  const favoriteCategoryWeights = new Map();
+  const favoriteTokenWeights = new Map();
+
+  const cartCategoryWeights = new Map();
+  const cartTokenWeights = new Map();
+
+  for (const item of favoriteItems) {
+    favoriteCategoryWeights.set(
+      item.category,
+      (favoriteCategoryWeights.get(item.category) || 0) + 1
+    );
+
+    const words = [
+      ...tokenize(item.title),
+      ...tokenize(item.description),
+      ...tokenize(item.category)
+    ];
+
+    for (const word of words) {
+      favoriteTokenWeights.set(word, (favoriteTokenWeights.get(word) || 0) + 1);
+    }
+  }
+
+  for (const item of cartItems) {
+    cartCategoryWeights.set(
+      item.category,
+      (cartCategoryWeights.get(item.category) || 0) + 1
+    );
+
+    const words = [
+      ...tokenize(item.title),
+      ...tokenize(item.description),
+      ...tokenize(item.category)
+    ];
+
+    for (const word of words) {
+      cartTokenWeights.set(word, (cartTokenWeights.get(word) || 0) + 1);
+    }
+  }
+
+  score += (favoriteCategoryWeights.get(candidate.category) || 0) * 20;
+
+  score += (cartCategoryWeights.get(candidate.category) || 0) * 30;
+
+  const candidateWords = new Set([
+    ...tokenize(candidate.title),
+    ...tokenize(candidate.description),
+    ...tokenize(candidate.category)
+  ]);
+
+  for (const word of candidateWords) {
+    if (favoriteTokenWeights.has(word)) {
+      score += favoriteTokenWeights.get(word) * 5;
+    }
+    if (cartTokenWeights.has(word)) {
+      score += cartTokenWeights.get(word) * 8;
+    }
+  }
+
+  for (const item of cartItems) {
+    const diff = Math.abs(Number(candidate.price) - Number(item.price));
+    const maxPrice = Math.max(Number(candidate.price), Number(item.price), 1);
+    const similarity = 1 - diff / maxPrice;
+    score += Math.max(0, similarity) * 12;
+  }
+
+  const ageMs = Date.now() - new Date(candidate.listedAt).getTime();
+  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+  if (ageDays <= 3) score += 8;
+  else if (ageDays <= 7) score += 5;
+  else if (ageDays <= 14) score += 2;
+
+  return score;
+};
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
@@ -480,9 +596,37 @@ app.post("/api/auth/resend-verification", async (req, res) => {
 
 
 // Get all goods with optional search and category filter
+// app.get("/api/goods", async (req, res) => {
+//   const { search, category, limit } = req.query;
+  
+//   let where = {};
+//   if (search) {
+//     where.OR = [
+//       { title: { contains: search } },
+//       { description: { contains: search } },
+//       { category: { contains: search } }
+//     ];
+//   }
+//   if (category && category !== "All") {
+//     where.category = category;
+//   }
+
+//   const goods = await prisma.goods.findMany({
+//     where,
+//     orderBy: { listedAt: "desc" },
+//     take: limit ? parseInt(limit) : undefined
+//   });
+  
+//   const items = goods.map((item) => ({
+//     ...item,
+//     images: item.images ? JSON.parse(item.images) : []
+//   }));
+//   res.json({ items });
+// });
 app.get("/api/goods", async (req, res) => {
   const { search, category, limit } = req.query;
-  
+  const userId = req.header("x-user-id");
+
   let where = {};
   if (search) {
     where.OR = [
@@ -495,47 +639,103 @@ app.get("/api/goods", async (req, res) => {
     where.category = category;
   }
 
-  const goods = await prisma.goods.findMany({
-    where,
-    orderBy: { listedAt: "desc" },
-    take: limit ? parseInt(limit) : undefined
-  });
-  
-  const items = goods.map((item) => ({
-    ...item,
-    images: item.images ? JSON.parse(item.images) : []
-  }));
+  const [goods, favoriteSet] = await Promise.all([
+    prisma.goods.findMany({
+      where,
+      orderBy: { listedAt: "desc" },
+      take: limit ? parseInt(limit) : undefined
+    }),
+    buildFavoriteSet(userId)
+  ]);
+
+  const items = goods.map((item) => toGoodsResponse(item, favoriteSet));
   res.json({ items });
 });
 
 // Get single product by ID
+// app.get("/api/goods/:id", async (req, res) => {
+//   const { id } = req.params;
+//   const item = await prisma.goods.findUnique({ where: { id } });
+  
+//   if (!item) {
+//     return res.status(404).json({ message: "Product not found" });
+//   }
+  
+//   res.json({
+//     item: {
+//       ...item,
+//       images: item.images ? JSON.parse(item.images) : []
+//     }
+//   });
+// });
 app.get("/api/goods/:id", async (req, res) => {
   const { id } = req.params;
-  const item = await prisma.goods.findUnique({ where: { id } });
-  
+  const userId = req.header("x-user-id");
+
+  const [item, favoriteSet] = await Promise.all([
+    prisma.goods.findUnique({ where: { id } }),
+    buildFavoriteSet(userId)
+  ]);
+
   if (!item) {
     return res.status(404).json({ message: "Product not found" });
   }
-  
+
   res.json({
-    item: {
-      ...item,
-      images: item.images ? JSON.parse(item.images) : []
-    }
+    item: toGoodsResponse(item, favoriteSet)
   });
 });
 
 // Get recommendations based on category and exclude current item
+// app.get("/api/goods/:id/recommendations", async (req, res) => {
+//   const { id } = req.params;
+//   const { limit = 8 } = req.query;
+  
+//   const currentItem = await prisma.goods.findUnique({ where: { id } });
+//   if (!currentItem) {
+//     return res.status(404).json({ message: "Product not found" });
+//   }
+
+//   // Get items from same category, excluding current item
+//   const similarItems = await prisma.goods.findMany({
+//     where: {
+//       category: currentItem.category,
+//       id: { not: id }
+//     },
+//     orderBy: { listedAt: "desc" },
+//     take: parseInt(limit)
+//   });
+
+//   // If not enough similar items, get popular items from other categories
+//   let recommendations = similarItems;
+//   if (recommendations.length < parseInt(limit)) {
+//     const otherItems = await prisma.goods.findMany({
+//       where: {
+//         id: { notIn: [id, ...recommendations.map(i => i.id)] }
+//       },
+//       orderBy: { listedAt: "desc" },
+//       take: parseInt(limit) - recommendations.length
+//     });
+//     recommendations = [...recommendations, ...otherItems];
+//   }
+
+//   const items = recommendations.map((item) => ({
+//     ...item,
+//     images: item.images ? JSON.parse(item.images) : []
+//   }));
+  
+//   res.json({ items });
+// });
 app.get("/api/goods/:id/recommendations", async (req, res) => {
   const { id } = req.params;
   const { limit = 8 } = req.query;
-  
+  const userId = req.header("x-user-id");
+
   const currentItem = await prisma.goods.findUnique({ where: { id } });
   if (!currentItem) {
     return res.status(404).json({ message: "Product not found" });
   }
 
-  // Get items from same category, excluding current item
   const similarItems = await prisma.goods.findMany({
     where: {
       category: currentItem.category,
@@ -545,12 +745,11 @@ app.get("/api/goods/:id/recommendations", async (req, res) => {
     take: parseInt(limit)
   });
 
-  // If not enough similar items, get popular items from other categories
   let recommendations = similarItems;
   if (recommendations.length < parseInt(limit)) {
     const otherItems = await prisma.goods.findMany({
       where: {
-        id: { notIn: [id, ...recommendations.map(i => i.id)] }
+        id: { notIn: [id, ...recommendations.map((i) => i.id)] }
       },
       orderBy: { listedAt: "desc" },
       take: parseInt(limit) - recommendations.length
@@ -558,12 +757,157 @@ app.get("/api/goods/:id/recommendations", async (req, res) => {
     recommendations = [...recommendations, ...otherItems];
   }
 
-  const items = recommendations.map((item) => ({
-    ...item,
-    images: item.images ? JSON.parse(item.images) : []
-  }));
-  
+  const favoriteSet = await buildFavoriteSet(userId);
+  const items = recommendations.map((item) => toGoodsResponse(item, favoriteSet));
+
   res.json({ items });
+});
+
+// Get user's favorite items
+app.get("/api/favorites", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const favorites = await prisma.favorite.findMany({
+    where: { userId },
+    include: { goods: true },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const items = favorites.map((favorite) =>
+    toGoodsResponse(favorite.goods, new Set([favorite.goodsId]))
+  );
+
+  return res.json({ items });
+});
+
+// Add favorite
+app.post("/api/favorites", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  const { goodsId } = req.body || {};
+
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+  if (!goodsId) {
+    return res.status(400).json({ message: "goodsId is required." });
+  }
+
+  const goods = await prisma.goods.findUnique({ where: { id: goodsId } });
+  if (!goods) {
+    return res.status(404).json({ message: "Product not found." });
+  }
+
+  await prisma.favorite.upsert({
+    where: {
+      userId_goodsId: { userId, goodsId }
+    },
+    update: {},
+    create: {
+      userId,
+      goodsId
+    }
+  });
+
+  return res.status(201).json({ success: true });
+});
+
+// Remove favorite
+app.delete("/api/favorites/:goodsId", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  const { goodsId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const existing = await prisma.favorite.findUnique({
+    where: {
+      userId_goodsId: { userId, goodsId }
+    }
+  });
+
+  if (!existing) {
+    return res.status(404).json({ message: "Favorite not found." });
+  }
+
+  await prisma.favorite.delete({
+    where: {
+      userId_goodsId: { userId, goodsId }
+    }
+  });
+
+  return res.json({ success: true });
+});
+
+// Get personalized recommendations based on user's favorites
+app.get("/api/recommendations/personal", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  const { limit = 8, cartIds = "" } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const cartItemIds = String(cartIds)
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const [favorites, cartItems] = await Promise.all([
+    prisma.favorite.findMany({
+      where: { userId },
+      include: { goods: true },
+      orderBy: { createdAt: "desc" }
+    }),
+    cartItemIds.length > 0
+      ? prisma.goods.findMany({
+          where: {
+            id: { in: cartItemIds }
+          }
+        })
+      : Promise.resolve([])
+  ]);
+
+  const favoriteItems = favorites.map((f) => f.goods);
+  const excludedIds = new Set([
+    ...favoriteItems.map((item) => item.id),
+    ...cartItems.map((item) => item.id)
+  ]);
+
+  if (favoriteItems.length === 0 && cartItems.length === 0) {
+    const fallback = await prisma.goods.findMany({
+      orderBy: { listedAt: "desc" },
+      take: parseInt(limit)
+    });
+
+    const favoriteSet = await buildFavoriteSet(userId);
+    return res.json({
+      items: fallback.map((item) => toGoodsResponse(item, favoriteSet))
+    });
+  }
+
+  const candidates = await prisma.goods.findMany({
+    where: {
+      id: { notIn: Array.from(excludedIds) }
+    }
+  });
+
+  const ranked = candidates
+    .map((item) => ({
+      ...item,
+      __score: computePersonalRecommendationScore(item, favoriteItems, cartItems)
+    }))
+    .sort((a, b) => b.__score - a.__score)
+    .slice(0, parseInt(limit));
+
+  const favoriteSet = await buildFavoriteSet(userId);
+
+  return res.json({
+    items: ranked.map(({ __score, ...item }) => toGoodsResponse(item, favoriteSet))
+  });
 });
 
 // Get all categories
