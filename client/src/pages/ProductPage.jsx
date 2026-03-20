@@ -12,9 +12,9 @@ export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
-  const { cart, addToCart, addToRecentlyViewed, recentlyViewed } = useCart();
+  const { cart, addToCart, addToRecentlyViewed, recentlyViewed, updateRecentlyViewedItem } = useCart();
   const { createConversation } = useChat();
-  
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [product, setProduct] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,12 +28,15 @@ export default function ProductPage() {
   const loadProduct = async () => {
     setLoading(true);
     try {
-      const data = await api.getGood(id);
+      const data = await api.getGood(id, isLoggedIn ? user : null);
       setProduct(data.item);
-      addToRecentlyViewed(data.item);
+      addToRecentlyViewed({
+        ...data.item,
+        isFavorited: Boolean(data.item.isFavorited)
+      });
       
       // Load recommendations
-      const recsData = await api.getRecommendations(id, 8);
+      const recsData = await api.getRecommendations(id, 8, isLoggedIn ? user : null);
       setRecommendations(recsData.items || []);
     } catch (err) {
       console.error('Error loading product:', err);
@@ -70,6 +73,38 @@ export default function ProductPage() {
     navigate('/payment');
   };
 
+  // Toggle favorite status of the product and update both the product state and recommendations list to reflect the change
+  const handleToggleFavorite = async () => {
+    if (!product || !isLoggedIn || favoriteLoading) return;
+
+    setFavoriteLoading(true);
+    try {
+      if (product.isFavorited) {
+        await api.removeFavorite(product.id, user);
+        setProduct((prev) => ({ ...prev, isFavorited: false }));
+        updateRecentlyViewedItem(product.id, { isFavorited: false });
+        setRecommendations((prev) =>
+          prev.map((item) =>
+            item.id === product.id ? { ...item, isFavorited: false } : item
+          )
+        );
+      } else {
+        await api.addFavorite(product.id, user);
+        setProduct((prev) => ({ ...prev, isFavorited: true }));
+        updateRecentlyViewedItem(product.id, { isFavorited: true });
+        setRecommendations((prev) =>
+          prev.map((item) =>
+            item.id === product.id ? { ...item, isFavorited: true } : item
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
   const handleMessageSeller = async () => {
     if (!product || !isLoggedIn) return;
 
@@ -104,6 +139,15 @@ export default function ProductPage() {
         isError: true
       });
     }
+  };
+
+
+  const handleRecommendationFavoriteChange = (itemId, nextIsFavorited) => {
+    setRecommendations(prev =>
+      prev.map(item =>
+        item.id === itemId ? { ...item, isFavorited: nextIsFavorited } : item
+      )
+    );
   };
 
   const isInCart = cart.some(c => c.id === product?.id);
@@ -256,6 +300,27 @@ export default function ProductPage() {
                 </svg>
                 Message Seller
               </button>
+              <button
+                className="btn btn-lg btn-secondary"
+                onClick={handleToggleFavorite}
+                disabled={!isLoggedIn || favoriteLoading}
+              >
+                {product.isFavorited ? (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"></path>
+                    </svg>
+                    Saved
+                  </>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"></path>
+                    </svg>
+                    Save Item
+                  </>
+                )}
+              </button>
             </div>
             
             {!isLoggedIn && (
@@ -289,7 +354,7 @@ export default function ProductPage() {
             </div>
             <div className="horizontal-scroll">
               {recommendations.map(item => (
-                <ProductCard key={item.id} item={item} isSmall />
+                <ProductCard key={item.id} item={item} isSmall onFavoriteChange={handleRecommendationFavoriteChange}/>
               ))}
             </div>
           </section>

@@ -1,20 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { formatPrice } from '../utils/api';
+import { api, formatPrice } from '../utils/api';
 
-export default function ProductCard({ item, isSmall = false }) {
-  const { isLoggedIn } = useAuth();
-  const { addToCart, addToRecentlyViewed } = useCart();
+export default function ProductCard({ item, isSmall = false, onFavoriteChange }) {
+  const { user, isLoggedIn } = useAuth();
+  const { addToCart, addToRecentlyViewed, updateRecentlyViewedItem } = useCart();
   const navigate = useNavigate();
-  const [addedFeedback, setAddedFeedback] = useState(false);
 
-  const conditionClass = item.condition === 'Like New' ? 'badge-success' : 
-                        item.condition === 'Good' ? 'badge-primary' : 'badge-warning';
+  const [addedFeedback, setAddedFeedback] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(Boolean(item.isFavorited));
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  useEffect(() => {
+    setIsFavorited(Boolean(item.isFavorited));
+  }, [item.isFavorited, item.id]);
+
+  const conditionClass =
+    item.condition === 'Like New'
+      ? 'badge-success'
+      : item.condition === 'Good'
+        ? 'badge-primary'
+        : 'badge-warning';
 
   const handleCardClick = (e) => {
     if (e.target.closest('.add-cart-btn')) return;
+    if (e.target.closest('.favorite-btn')) return;
     addToRecentlyViewed(item);
     navigate(`/product/${item.id}`);
   };
@@ -33,15 +45,73 @@ export default function ProductCard({ item, isSmall = false }) {
     setTimeout(() => setAddedFeedback(false), 1500);
   };
 
+  const handleToggleFavorite = async (e) => {
+    e.stopPropagation();
+    if (!isLoggedIn || favoriteLoading) return;
+
+    setFavoriteLoading(true);
+    try {
+      if (isFavorited) {
+        await api.removeFavorite(item.id, user);
+        setIsFavorited(false);
+        updateRecentlyViewedItem(item.id, { isFavorited: false });
+        onFavoriteChange?.(item.id, false);
+      } else {
+        await api.addFavorite(item.id, user);
+        setIsFavorited(true);
+        updateRecentlyViewedItem(item.id, { isFavorited: true });
+        onFavoriteChange?.(item.id, true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
   return (
     <div className="card" onClick={handleCardClick}>
-      <div className="card-image">
-        <img 
-          src={item.images?.[0] || `https://picsum.photos/seed/${item.id}/600/400`} 
-          alt={item.title} 
-          loading="lazy" 
+      <div className="card-image" style={{ position: 'relative' }}>
+        <img
+          src={item.images?.[0] || `https://picsum.photos/seed/${item.id}/600/400`}
+          alt={item.title}
+          loading="lazy"
         />
+
+        <button
+          className="favorite-btn"
+          onClick={handleToggleFavorite}
+          disabled={!isLoggedIn || favoriteLoading}
+          title={!isLoggedIn ? 'Login to save items' : isFavorited ? 'Remove from favorites' : 'Save item'}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            width: '38px',
+            height: '38px',
+            borderRadius: '999px',
+            border: 'none',
+            background: 'rgba(255,255,255,0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: !isLoggedIn ? 'not-allowed' : 'pointer',
+            opacity: !isLoggedIn ? 0.55 : 1,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+          }}
+        >
+          {isFavorited ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
+              <path d="M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"></path>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"></path>
+            </svg>
+          )}
+        </button>
       </div>
+
       <div className="card-body">
         <div className="card-badges">
           <span className="badge badge-primary">{item.category}</span>
@@ -57,11 +127,12 @@ export default function ProductCard({ item, isSmall = false }) {
           {item.location}
         </div>
       </div>
+
       <div className="card-footer">
         <div className="price">
           <span className="price-currency">CAD</span> {formatPrice(item.price)}
         </div>
-        <button 
+        <button
           className="btn btn-sm btn-primary add-cart-btn"
           onClick={handleAddToCart}
           disabled={!isLoggedIn}

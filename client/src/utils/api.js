@@ -48,23 +48,32 @@ export const api = {
   },
 
   // Goods
-  async getGoods(search = '', category = '') {
+
+  async getGoods(search = '', category = '', user = null) {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     if (category && category !== 'All') params.append('category', category);
-    const res = await fetch(`${API_BASE}/goods?${params}`);
+
+    const res = await fetch(`${API_BASE}/goods?${params}`, {
+      headers: user ? getAuthHeaders(user) : {}
+    });
+
     if (!res.ok) throw new Error('Failed to load goods');
     return res.json();
   },
 
-  async getGood(id) {
-    const res = await fetch(`${API_BASE}/goods/${id}`);
+  async getGood(id, user = null) {
+    const res = await fetch(`${API_BASE}/goods/${id}`, {
+      headers: user ? getAuthHeaders(user) : {}
+    });
     if (!res.ok) throw new Error('Product not found');
     return res.json();
   },
 
-  async getRecommendations(id, limit = 8) {
-    const res = await fetch(`${API_BASE}/goods/${id}/recommendations?limit=${limit}`);
+  async getRecommendations(id, limit = 8, user = null) {
+    const res = await fetch(`${API_BASE}/goods/${id}/recommendations?limit=${limit}`, {
+      headers: user ? getAuthHeaders(user) : {}
+    });
     if (!res.ok) throw new Error('Failed to load recommendations');
     return res.json();
   },
@@ -327,6 +336,56 @@ export const api = {
     if (!res.ok) throw new Error(data.message || "Failed to resend verification email");
     return data;
   },
+
+  // Favorites and Recommendations
+  async getFavorites(user) {
+    const res = await fetch(`${API_BASE}/favorites`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load favorites');
+    return data;
+  },
+
+  async addFavorite(goodsId, user) {
+    const res = await fetch(`${API_BASE}/favorites`, {
+      method: 'POST',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify({ goodsId })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to add favorite');
+    return data;
+  },
+
+  async removeFavorite(goodsId, user) {
+    const res = await fetch(`${API_BASE}/favorites/${goodsId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to remove favorite');
+    return data;
+  },
+
+  async getPersonalRecommendations(limit = 8, user, cart = []) {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+
+    if (cart.length > 0) {
+      params.append('cartIds', cart.map(item => item.id).join(','));
+    }
+
+    const res = await fetch(`${API_BASE}/recommendations/personal?${params.toString()}`, {
+      headers: getAuthHeaders(user)
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to load personalized recommendations');
+    }
+    return data;
+  }
 
 };
 

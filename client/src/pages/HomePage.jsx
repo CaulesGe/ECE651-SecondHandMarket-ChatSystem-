@@ -11,7 +11,7 @@ import { api } from '../utils/api';
 
 export default function HomePage() {
   const { user, isLoggedIn } = useAuth();
-  const { recentlyViewed, clearRecentlyViewed } = useCart();
+  const { recentlyViewed, clearRecentlyViewed, cart } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
@@ -126,11 +126,33 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      try {
+        if (isLoggedIn) {
+          const res = await api.getPersonalRecommendations(8, user, cart);
+          setRecommended(res.items || []);
+        } else {
+          setRecommended(goods.slice(0, 8));
+        }
+      } catch (err) {
+        console.error('Error loading recommendations:', err);
+        setRecommended(goods.slice(0, 8));
+      }
+    };
+
+    loadRecommendations();
+  }, [isLoggedIn, user, goods, cart]);
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [goodsRes, catsRes] = await Promise.all([
-        api.getGoods(searchParams.get('search') || '', searchParams.get('category') || ''),
+        api.getGoods(
+          searchParams.get('search') || '',
+          searchParams.get('category') || '',
+          isLoggedIn ? user : null
+        ),
         api.getCategories()
       ]);
       setGoods(goodsRes.items || []);
@@ -155,7 +177,7 @@ export default function HomePage() {
     return true;
   });
 
-  const recommended = goods.slice(0, 8);
+  const [recommended, setRecommended] = useState([]);
   const previewDescription = sellForm.description.trim()
     ? `${sellForm.description.trim().slice(0, 120)}${sellForm.description.trim().length > 120 ? '...' : ''}`
     : 'Add a clear description so buyers can decide quickly.';
@@ -342,6 +364,20 @@ export default function HomePage() {
     }
   };
 
+  const handleFavoriteChange = (itemId, nextIsFavorited) => {
+    setGoods(prev =>
+      prev.map(item =>
+        item.id === itemId ? { ...item, isFavorited: nextIsFavorited } : item
+      )
+    );
+
+    setRecommended(prev =>
+      prev.map(item =>
+        item.id === itemId ? { ...item, isFavorited: nextIsFavorited } : item
+      )
+    );
+  };
+
   return (
     <>
       <Header />
@@ -407,7 +443,7 @@ export default function HomePage() {
                 </div>
                 <div className="horizontal-scroll">
                   {recentlyViewed.map(item => (
-                    <ProductCard key={item.id} item={item} isSmall />
+                    <ProductCard key={item.id} item={item} isSmall onFavoriteChange={handleFavoriteChange}/>
                   ))}
                 </div>
               </div>
@@ -425,7 +461,7 @@ export default function HomePage() {
               </div>
               <div className="horizontal-scroll">
                 {recommended.map(item => (
-                  <ProductCard key={item.id} item={item} isSmall />
+                  <ProductCard key={item.id} item={item} isSmall onFavoriteChange={handleFavoriteChange}/>
                 ))}
               </div>
             </div>
@@ -671,7 +707,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 filteredGoods.map(item => (
-                  <ProductCard key={item.id} item={item} />
+                  <ProductCard key={item.id} item={item} onFavoriteChange={handleFavoriteChange}/>
                 ))
               )}
             </div>

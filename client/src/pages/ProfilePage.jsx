@@ -4,11 +4,13 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
 import { api, formatPrice } from '../utils/api';
+import ProductCard from '../components/ProductCard';
 
 export default function ProfilePage() {
   const { user, isLoggedIn } = useAuth();
   const navigate = useNavigate();
-
+  const [favorites, setFavorites] = useState([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [profile, setProfile] = useState({
     address: '',
     email: user.email || '',
@@ -39,22 +41,38 @@ export default function ProfilePage() {
     alert('Profile saved!');
   };
 
+  const handleFavoriteChange = (itemId, nextIsFavorited) => {
+    setFavorites(prev =>
+      nextIsFavorited
+        ? prev.map(item =>
+            item.id === itemId ? { ...item, isFavorited: true } : item
+          )
+        : prev.filter(item => item.id !== itemId)
+    );
+  };
+
   useEffect(() => {
     if (!isLoggedIn) return;
 
-    const fetchDrafts = async () => {
+    const loadProfileData = async () => {
       setDraftsLoading(true);
+      setFavoritesLoading(true);
       try {
-        const response = await api.getDrafts(user);
-        setDrafts(response.items || []);
+        const [draftRes, favoriteRes] = await Promise.all([
+          api.getDrafts(user),
+          api.getFavorites(user)
+        ]);
+        setDrafts(draftRes.items || []);
+        setFavorites(favoriteRes.items || []);
       } catch (error) {
-        console.error('Failed to load drafts on profile page:', error);
+        console.error('Failed to load profile data:', error);
       } finally {
         setDraftsLoading(false);
+        setFavoritesLoading(false);
       }
     };
 
-    fetchDrafts();
+    loadProfileData();
   }, [isLoggedIn, user.id]);
 
   if (!isLoggedIn) {
@@ -66,7 +84,12 @@ export default function ProfilePage() {
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
 
-  const currentList = tab === 'drafts' ? drafts : products[tab];
+  const currentList =
+  tab === 'drafts'
+    ? drafts
+    : tab === 'favorites'
+      ? favorites
+      : products[tab];
   const formatDraftUpdatedAt = (value) => {
     if (!value) return 'Just now';
     const date = new Date(value);
@@ -163,6 +186,12 @@ export default function ProfilePage() {
               >
                 Drafts
               </button>
+              <button
+                className={tab === 'favorites' ? 'active' : ''}
+                onClick={() => setTab('favorites')}
+              >
+                Favorites
+              </button>
             </div>
 
             <ul className="product-list">
@@ -194,6 +223,24 @@ export default function ProfilePage() {
                         >
                           Continue Editing
                         </button>
+                      </li>
+                    );
+                  }
+                  if (tab === 'favorites') {
+                    if (favoritesLoading) {
+                      return (
+                        <li style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
+                          Loading favorites...
+                        </li>
+                      );
+                    }
+
+                    return (
+                      <li key={item.id} style={{ listStyle: 'none', marginBottom: '16px' }}>
+                        <ProductCard
+                          item={item}
+                          onFavoriteChange={handleFavoriteChange}
+                        />
                       </li>
                     );
                   }
