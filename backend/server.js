@@ -8,6 +8,7 @@ import { PrismaClient } from "@prisma/client";
 import { mountChatService } from "./chat/index.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 import multer from "multer";
 import { isEmailConfigured, sendVerificationEmail } from "./email.js";
 import { closeRedis, initRedis } from "./utils/redis.js";
@@ -70,6 +71,179 @@ function getClientUrl() {
 function makeToken() {
   return crypto.randomBytes(32).toString("hex");
 }
+
+function createTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    throw new Error("Email is not configured: missing SMTP_HOST/SMTP_USER/SMTP_PASS");
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465, // 587 -> STARTTLS, secure false
+    auth: { user, pass }
+  });
+}
+
+async function sendPasswordResetEmail({ to, name, resetUrl }) {
+  const transporter = createTransporter();
+  const from = process.env.MAIL_FROM || "Secondhand Hub <no-reply@secondhand.com>";
+  const subject = "Reset your password for Secondhand Hub";
+  await transporter.sendMail({
+    from,
+    to,
+    subject: subject,
+    text: 
+      `Hi ${name || "there"},
+      We received a request to reset your password for Secondhand Hub.
+      Use this link to set a new password: 
+      ${resetUrl}.
+      If you did not request this, you can ignore this email.`
+    ,
+    html: 
+      `<div style="font-family: Arial, sans-serif; line-height: 1.5;">
+    <h2>Reset your password for Secondhand Hub</h2>
+    <p>Hi ${name || "there"},</p>
+    <p>Please reset your password for Secondhand Hub by clicking the button below:</p>
+    <p>
+      <a href="${resetUrl}" style="display:inline-block;padding:10px 14px;background:#111;color:#fff;text-decoration:none;border-radius:8px;">
+        Reset Password
+      </a>
+    </p>
+    <p style="color:#666;font-size:12px;">
+      If you didn't make this request, you can ignore this email.
+    </p>
+  </div>`
+  });
+}
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email } = req.body || {};
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required." });
+  }
+
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const genericMessage = "If that email exists, a password reset link has been sent.";
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail }
+  });
+
+  // Do not reveal whether the account exists.
+  // Also do not overwrite verification token flow for unverified users.
+  if (!user || !user.emailVerified) {
+    return res.json({ message: genericMessage });
+  }
+
+  const token = makeToken();
+  const expires = new Date(Date.now() + 1000 * 60 * 15);
+  const resetUrl = `${getClientUrl()}/reset-password?token=${token}`;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      verificationToken: token,
+      verificationExpires: expires
+    }
+  });
+
+  if (!isEmailConfigured()) {
+    console.log("[FORGOT PASSWORD]", normalizedEmail, "resetUrl=", resetUrl);
+    return res.json({ message: genericMessage });
+  }
+
+  try {
+    await sendPasswordResetEmail({
+      to: normalizedEmail,
+      name: user.name,
+      resetUrl
+    });
+  } catch (e) {
+    console.error("[FORGOT PASSWORD] email send failed:", e?.message || e);
+  }
+
+  return res.json({ message: genericMessage });
+});
+
+app.get("/api/auth/reset-password/validate", async (req, res) => {
+  const token = String(req.query.token || "").trim();
+
+  if (!token) {
+    return res.status(400).json({ valid: false, message: "Missing token." });
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      verificationToken: token,
+      emailVerified: true
+    }
+  });
+
+  if (!user) {
+    return res.status(400).json({ valid: false, message: "Invalid token." });
+  }
+
+  if (!user.verificationExpires || user.verificationExpires < new Date()) {
+    return res.status(400).json({ valid: false, message: "Token expired." });
+  }
+
+  return res.json({ valid: true });
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, password, confirmPassword } = req.body || {};
+
+  if (!token || !password || !confirmPassword) {
+    return res.status(400).json({
+      message: "Token, password, and confirmPassword are required."
+    });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({
+      message: "Password must be at least 6 characters."
+    });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({
+      message: "Passwords do not match."
+    });
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      verificationToken: String(token),
+      emailVerified: true
+    }
+  });
+
+  if (!user) {
+    return res.status(400).json({ message: "Invalid token." });
+  }
+
+  if (!user.verificationExpires || user.verificationExpires < new Date()) {
+    return res.status(400).json({ message: "Token expired." });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password,
+      verificationToken: null,
+      verificationExpires: null
+    }
+  });
+
+  return res.json({ message: "Password reset successfully." });
+});
 
 // Expanded dummy data with many more products
 const seedIfEmpty = async () => {
