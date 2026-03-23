@@ -9,6 +9,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState({ show: false, message: '', isError: true });
@@ -94,15 +95,21 @@ export default function LoginPage() {
           </div>
           <div className="form-group">
             <label htmlFor="loginPassword">Password</label>
+            <div className="passwordDiv">
             <input 
               id="loginPassword"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <button type="button" class="toggle-password" id="togglePassword" style = {{position : "absolute", right : "10px", top : "35%", border : "none", background : "var(--bg)"}} onClick={() => setShowPassword(!showPassword)}>{showPassword ? "\u{1F648}" : "\u{1F441}"}</button>
+            </div>
           </div>
+          <p className="form-footer" style={{textAlign : "left"}}>
+          <Link to="/forgetPassword">Forget Your Password?</Link>
+        </p>
           <button 
             type="submit" 
             className="btn btn-primary" 

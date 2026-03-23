@@ -10,6 +10,8 @@ export default function RegisterPage() {
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [repassword, setRePassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -102,25 +104,31 @@ export default function RegisterPage() {
           </div>
           <div className="form-group">
             <label htmlFor="registerPassword">Password</label>
+            <div className="passwordDiv">
             <input 
               id="registerPassword"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Create a password"
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <button type="button" class="toggle-password" id="togglePassword" style = {{position : "absolute", right : "10px", top : "35%", border : "none", background : "var(--bg)"}} onClick={() => setShowPassword(!showPassword)}>{showPassword ? "\u{1F648}" : "\u{1F441}"}</button>
+            </div>
           </div>
           <div className="form-group">
             <label htmlFor="registerPassword">Confirm Password</label>
+            <div className="passwordDiv">
             <input 
               id="registerPassword"
-              type="password"
+              type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm the password"
               autoComplete="new-password"
               value={repassword}
               onChange={(e) => setRePassword(e.target.value)}
             />
+            <button type="button" class="toggle-password" id="togglePassword" style = {{position : "absolute", right : "10px", top : "35%", border : "none", background : "var(--bg)"}} onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? "\u{1F648}" : "\u{1F441}"}</button>
+            </div>
           </div>
           <button 
             type="submit" 

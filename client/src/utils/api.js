@@ -337,6 +337,28 @@ export const api = {
     return data;
   },
 
+   async resetVerification(email) {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to send reset password email");
+    return data;
+  },
+
+  async resetPassword(token, password, confirmPassword) {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password, confirmPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to reset password");
+    return data;
+  },
+
   // Favorites and Recommendations
   async getFavorites(user) {
     const res = await fetch(`${API_BASE}/favorites`, {

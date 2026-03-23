@@ -12,6 +12,8 @@ import AdminPage from './pages/AdminPage';
 import ProfilePage from './pages/ProfilePage';
 import ChatPage from './pages/ChatPage';
 import VerifyEmailPage from "./pages/VerifyEmailPage";
+import ForgotPasswordPage from './pages/ForgetPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 
 export default function App() {
@@ -30,6 +32,8 @@ export default function App() {
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/forgetPassword" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
             </Routes>
           </ChatProvider>
         </CartProvider>
