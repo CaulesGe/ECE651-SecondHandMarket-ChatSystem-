@@ -122,6 +122,103 @@ async function sendPasswordResetEmail({ to, name, resetUrl }) {
   });
 }
 
+function formatPrice(value) {
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD"
+  }).format(Number(value || 0));
+}
+
+async function sendOrderConfirmationEmail({
+  to,
+  name,
+  transactionId,
+  items,
+  total,
+  last4,
+  createdAt
+}) {
+  const transporter = createTransporter();
+  const from = process.env.MAIL_FROM || "Secondhand Hub <no-reply@secondhand.com>";
+  const subject = `Order Confirmation - ${transactionId}`;
+
+  const itemLinesText = items
+    .map((item) => {
+      const lineTotal = Number(item.price) * Number(item.quantity);
+      return `- ${item.title} x${item.quantity} | ${formatPrice(item.price)} each | ${formatPrice(lineTotal)}`;
+    })
+    .join("\n");
+
+  const itemRowsHtml = items
+    .map((item) => {
+      const lineTotal = Number(item.price) * Number(item.quantity);
+      return `
+        <tr>
+          <td style="padding:8px;border:1px solid #ddd;">${item.title}</td>
+          <td style="padding:8px;border:1px solid #ddd;text-align:center;">${item.quantity}</td>
+          <td style="padding:8px;border:1px solid #ddd;text-align:right;">${formatPrice(item.price)}</td>
+          <td style="padding:8px;border:1px solid #ddd;text-align:right;">${formatPrice(lineTotal)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text: `Hi ${name || "there"},
+
+Thank you for your purchase from Secondhand Hub.
+
+Order ID: ${transactionId}
+Order Date: ${new Date(createdAt).toLocaleString("en-CA")}
+Paid with card ending in: ${last4}
+
+Items:
+${itemLinesText}
+
+Total: ${formatPrice(total)}
+
+Thank you for shopping with us.`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #222;">
+        <h2>Thank you for your purchase</h2>
+        <p>Hi ${name || "there"},</p>
+        <p>Your order has been received successfully.</p>
+
+        <div style="margin: 16px 0;">
+          <p><strong>Order ID:</strong> ${transactionId}</p>
+          <p><strong>Order Date:</strong> ${new Date(createdAt).toLocaleString("en-CA")}</p>
+          <p><strong>Paid with card ending in:</strong> ${last4}</p>
+        </div>
+
+        <table style="border-collapse: collapse; width: 100%; margin-top: 16px;">
+          <thead>
+            <tr>
+              <th style="padding:8px;border:1px solid #ddd;text-align:left;background:#f5f5f5;">Item</th>
+              <th style="padding:8px;border:1px solid #ddd;text-align:center;background:#f5f5f5;">Qty</th>
+              <th style="padding:8px;border:1px solid #ddd;text-align:right;background:#f5f5f5;">Price</th>
+              <th style="padding:8px;border:1px solid #ddd;text-align:right;background:#f5f5f5;">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemRowsHtml}
+          </tbody>
+        </table>
+
+        <p style="margin-top: 16px; font-size: 16px;">
+          <strong>Total: ${formatPrice(total)}</strong>
+        </p>
+
+        <p style="color:#666; font-size:12px; margin-top:24px;">
+          This is an automated confirmation email from Secondhand Hub.
+        </p>
+      </div>
+    `
+  });
+}
+
 app.post("/api/auth/forgot-password", async (req, res) => {
   const { email } = req.body || {};
 
@@ -1163,6 +1260,15 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
     return res.status(400).json({ message: "Invalid checkout payload." });
   }
 
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, email: true }
+  });
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found." });
+  }
+
   const goods = await prisma.goods.findMany();
   const enrichedItems = items
     .map((item) => {
@@ -1203,6 +1309,27 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
       }
     }
   });
+
+  if (user.email && isEmailConfigured()) {
+    try {
+      await sendOrderConfirmationEmail({
+        to: user.email,
+        name: user.name,
+        transactionId: newTransaction.id,
+        items: enrichedItems,
+        total,
+        last4,
+        createdAt: newTransaction.createdAt
+      });
+    } catch (e) {
+      console.error("[CHECKOUT EMAIL] failed to send:", e?.message || e);
+    }
+  } else if (!isEmailConfigured()) {
+    console.log(
+      "[CHECKOUT EMAIL] Email not configured. Skipping order email for:",
+      user.email || user.id
+    );
+  }
 
   return res.status(201).json({
     transaction: {
