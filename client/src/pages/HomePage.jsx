@@ -33,6 +33,7 @@ export default function HomePage() {
   const [sellForm, setSellForm] = useState({
     title: '',
     price: '',
+    quantity: '',
     condition: 'Like New',
     category: '',
     description: '',
@@ -76,6 +77,7 @@ export default function HomePage() {
     setSellForm({
       title: draft.title || '',
       price: draft.price !== null && draft.price !== undefined ? String(draft.price) : '',
+      quantity: draft.quantity !== null && draft.quantity !== undefined ? String(draft.quantity) : '',
       condition: draft.condition || 'Like New',
       category: draft.category || categories[0] || '',
       description: draft.description || '',
@@ -217,6 +219,7 @@ export default function HomePage() {
     setSellForm({
       title: '',
       price: '',
+      quantity: '',
       condition: 'Like New',
       category: categories[0] || '',
       description: '',
@@ -249,6 +252,7 @@ export default function HomePage() {
       sellForm.title.trim() ||
       sellForm.description.trim() ||
       sellForm.price ||
+      sellForm.quantity ||
       sellForm.imageFile ||
       sellForm.imageUrl ||
       (sellForm.category && sellForm.category !== defaultCategory) ||
@@ -272,6 +276,7 @@ export default function HomePage() {
         id: activeDraftId || undefined,
         title: sellForm.title.trim(),
         price: sellForm.price ? parseFloat(sellForm.price) : null,
+        quantity: sellForm.quantity ? parseInt(sellForm.quantity, 10) : null,
         condition: sellForm.condition,
         category: sellForm.category,
         description: sellForm.description.trim(),
@@ -341,6 +346,7 @@ export default function HomePage() {
       await api.createGood({
         title: sellForm.title,
         price: parseFloat(sellForm.price),
+        quantity: sellForm.quantity,
         condition: sellForm.condition,
         category: sellForm.category,
         description: sellForm.description,
@@ -495,7 +501,7 @@ export default function HomePage() {
                       <div className="form-row">
                         <div className="form-group sell-field">
                           <label>
-                            Title
+                            Product Name
                             <span className="required-mark">Required</span>
                           </label>
                           <input
@@ -515,6 +521,18 @@ export default function HomePage() {
                             value={sellForm.price}
                             onChange={(e) => setSellForm({ ...sellForm, price: e.target.value })}
                             placeholder="0.00"
+                          />
+                        </div>
+                        <div className="form-group sell-field">
+                          <label>
+                            Stock Quantity
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={sellForm.quantity}
+                            onChange={(e) => setSellForm({ ...sellForm, quantity: e.target.value })}
+                            placeholder="Default is 1"
                           />
                         </div>
                       </div>

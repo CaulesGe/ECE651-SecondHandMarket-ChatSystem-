@@ -6,7 +6,7 @@ import { api, formatPrice } from '../utils/api';
 
 export default function ProductCard({ item, isSmall = false, onFavoriteChange }) {
   const { user, isLoggedIn } = useAuth();
-  const { addToCart, addToRecentlyViewed, updateRecentlyViewedItem } = useCart();
+  const { cart, addToCart, addToRecentlyViewed, updateRecentlyViewedItem } = useCart();
   const navigate = useNavigate();
 
   const [addedFeedback, setAddedFeedback] = useState(false);
@@ -24,6 +24,12 @@ export default function ProductCard({ item, isSmall = false, onFavoriteChange })
         ? 'badge-primary'
         : 'badge-warning';
 
+  const isOutOfStock = Number(item.quantity || 0) <= 0;
+  const isOwnListing = Boolean(user?.id && item.sellerId && user.id === item.sellerId);
+  const currentCartItem = cart.find((cartItem) => cartItem.id === item.id);
+  const currentCartQuantity = Number(currentCartItem?.quantity || 0);
+  const availableStock = Number(item.quantity || 0);      
+
   const handleCardClick = (e) => {
     if (e.target.closest('.add-cart-btn')) return;
     if (e.target.closest('.favorite-btn')) return;
@@ -33,14 +39,34 @@ export default function ProductCard({ item, isSmall = false, onFavoriteChange })
 
   const handleAddToCart = (e) => {
     e.stopPropagation();
+
+    if (isOwnListing) {
+      alert('You cannot buy your own listing.');
+      return;
+    }
+
+    if (isOutOfStock) {
+      alert('This item is out of stock.');
+      return;
+    }
+
+    if (currentCartQuantity + 1 > availableStock) {
+      alert(`Cannot add more. Only ${availableStock} item(s) available in stock.`);
+      return;
+    }
+
     addToCart({
       id: item.id,
       title: item.title,
       price: item.price,
       condition: item.condition,
       sellerName: item.sellerName,
-      location: item.location
-    });
+      sellerId: item.sellerId,
+      location: item.location,
+      quantity: 1,
+      availableQuantity: item.quantity
+    }, user);
+
     setAddedFeedback(true);
     setTimeout(() => setAddedFeedback(false), 1500);
   };
@@ -126,6 +152,12 @@ export default function ProductCard({ item, isSmall = false, onFavoriteChange })
           </svg>
           {item.location}
         </div>
+        <div
+          className="card-meta"
+          style={{ marginTop: '6px', color: isOutOfStock ? '#b91c1c' : 'var(--text-muted)' }}
+        >
+          {isOutOfStock ? 'Sold out' : `Stock: ${item.quantity}`}
+        </div>
       </div>
 
       <div className="card-footer">
@@ -135,11 +167,27 @@ export default function ProductCard({ item, isSmall = false, onFavoriteChange })
         <button
           className="btn btn-sm btn-primary add-cart-btn"
           onClick={handleAddToCart}
-          disabled={!isLoggedIn}
-          title={!isLoggedIn ? 'Register to add items to cart' : ''}
-          style={!isLoggedIn ? { opacity: 0.5 } : {}}
+          disabled={!isLoggedIn || isOutOfStock || isOwnListing}
+          title={
+            !isLoggedIn
+              ? 'Register to add items to cart'
+              : isOutOfStock
+                ? 'This item is out of stock'
+                : isOwnListing
+                  ? 'You cannot buy your own listing'
+                  : ''
+          }
+          style={!isLoggedIn || isOutOfStock ? { opacity: 0.5 } : {}}
         >
-          {addedFeedback ? (
+          {isOutOfStock ? (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Sold Out
+            </>
+          ) : addedFeedback ? (
             <>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="20 6 9 17 4 12"></polyline>

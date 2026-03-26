@@ -47,29 +47,70 @@ export default function ProductPage() {
 
   const handleAddToCart = () => {
     if (!product) return;
+
+    if (isOwnListing) {
+      alert('You cannot buy your own listing.');
+      return;
+    }
+
+    if (isOutOfStock) {
+      alert('This item is out of stock.');
+      return;
+    }
+
+    if (currentCartQuantity + 1 > availableStock) {
+      alert(`Cannot add more. Only ${availableStock} item(s) available in stock.`);
+      return;
+    }
+
     addToCart({
       id: product.id,
       title: product.title,
       price: product.price,
       condition: product.condition,
       sellerName: product.sellerName,
-      location: product.location
-    });
+      sellerId: product.sellerId,
+      location: product.location,
+      quantity: 1,
+      availableQuantity: product.quantity
+    },
+    user);
+
     setAddedFeedback(true);
   };
 
   const handleBuyNow = () => {
     if (!product) return;
-    if (!cart.some(c => c.id === product.id)) {
+
+    if (isOwnListing) {
+      alert('You cannot buy your own listing.');
+      return;
+    }
+
+    if (isOutOfStock) {
+      alert('This item is out of stock.');
+      return;
+    }
+
+    if (currentCartQuantity + (isInCart ? 0 : 1) > availableStock) {
+      alert(`Cannot proceed. Only ${availableStock} item(s) available in stock.`);
+      return;
+    }
+
+    if (!isInCart) {
       addToCart({
         id: product.id,
         title: product.title,
         price: product.price,
         condition: product.condition,
         sellerName: product.sellerName,
-        location: product.location
-      });
+        sellerId: product.sellerId,
+        location: product.location,
+        quantity: 1,
+        availableQuantity: product.quantity
+      }, user);
     }
+
     navigate('/payment');
   };
 
@@ -151,6 +192,11 @@ export default function ProductPage() {
   };
 
   const isInCart = cart.some(c => c.id === product?.id);
+  const currentCartItem = cart.find(c => c.id === product?.id);
+  const currentCartQuantity = Number(currentCartItem?.quantity || 0);
+  const availableStock = Number(product?.quantity || 0);
+  const isOutOfStock = availableStock <= 0;
+  const isOwnListing = Boolean(user?.id && product?.sellerId && user.id === product.sellerId);
   const recentFiltered = recentlyViewed.filter(r => r.id !== product?.id).slice(0, 8);
 
   if (loading) {
@@ -222,6 +268,10 @@ export default function ProductPage() {
             <div className="product-price">
               <span className="currency">CAD</span> {formatPrice(product.price)}
             </div>
+
+            <div style={{ marginTop: '8px', fontWeight: 600, color: isOutOfStock ? '#b91c1c' : 'inherit' }}>
+              {isOutOfStock ? 'Sold out' : `Stock: ${product.quantity}`}
+            </div>
             
             <div className="product-meta">
               <div className="product-meta-item">
@@ -259,9 +309,17 @@ export default function ProductPage() {
               <button 
                 className="btn btn-lg btn-primary"
                 onClick={handleAddToCart}
-                disabled={!isLoggedIn}
+                disabled={!isLoggedIn || isOutOfStock || isOwnListing}
               >
-                {addedFeedback || isInCart ? (
+                {isOutOfStock ? (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                    Sold Out
+                  </>
+                ) : addedFeedback || isInCart ? (
                   <>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="20 6 9 17 4 12"></polyline>
@@ -282,13 +340,13 @@ export default function ProductPage() {
               <button 
                 className="btn btn-lg btn-secondary"
                 onClick={handleBuyNow}
-                disabled={!isLoggedIn}
+                disabled={!isLoggedIn || isOutOfStock || isOwnListing}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                   <line x1="1" y1="10" x2="23" y2="10"></line>
                 </svg>
-                Buy Now
+                {isOutOfStock ? 'Sold Out' : 'Buy Now'}
               </button>
               <button
                 className="btn btn-lg btn-secondary"
@@ -323,7 +381,7 @@ export default function ProductPage() {
               </button>
             </div>
             
-            {!isLoggedIn && (
+            {!isLoggedIn ? (
               <p className="notice" style={{ marginTop: '16px' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10"></circle>
@@ -332,7 +390,24 @@ export default function ProductPage() {
                 </svg>
                 Please login or register to purchase
               </p>
-            )}
+            ) : isOutOfStock ? (
+              <p className="notice" style={{ marginTop: '16px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                This item is currently out of stock.
+              </p>
+            ) : isOwnListing ? (
+              <p className="notice" style={{ marginTop: '16px' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                You cannot purchase your own listing.
+              </p>
+            ) : null}
             {chatNotice.show && (
               <p className={`notice ${chatNotice.isError ? 'notice-error' : 'notice-success'}`} style={{ marginTop: '12px' }}>
                 {chatNotice.message}
