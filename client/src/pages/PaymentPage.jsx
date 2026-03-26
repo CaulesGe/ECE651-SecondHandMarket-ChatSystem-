@@ -8,7 +8,7 @@ import { api, formatPrice } from '../utils/api';
 export default function PaymentPage() {
   const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
-  const { cart, cartTotal, clearCart } = useCart();
+  const { cart, cartTotal, clearCart, updateCartItemQuantity, removeFromCart } = useCart();
 
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -58,6 +58,63 @@ export default function PaymentPage() {
     setCardExpiry(formatExpiry(e.target.value));
   };
 
+  const validateCartBeforeCheckout = () => {
+    for (const item of cart) {
+      const availableQuantity = Number(item.availableQuantity ?? item.quantity ?? 0);
+      const requestedQuantity = Number(item.quantity || 0);
+
+      if (item.sellerId && user?.id && item.sellerId === user.id) {
+        return {
+          ok: false,
+          message: `You cannot buy your own listing: ${item.title}.`
+        };
+      }
+
+      if (availableQuantity <= 0) {
+        return {
+          ok: false,
+          message: `${item.title} is out of stock.`
+        };
+      }
+
+      if (requestedQuantity > availableQuantity) {
+        return {
+          ok: false,
+          message: `${item.title} only has ${availableQuantity} item(s) left in stock.`
+        };
+      }
+    }
+
+    return { ok: true };
+  };
+
+
+  useEffect(() => {
+    if (!user || cart.length === 0) return;
+
+    for (const item of cart) {
+      const availableQuantity = Number(item.availableQuantity ?? item.quantity ?? 0);
+
+      if (item.sellerId && item.sellerId === user.id) {
+        setNotice({
+          show: true,
+          message: `Your cart contains your own listing: ${item.title}. Please remove it before checkout.`,
+          isError: true
+        });
+        break;
+      }
+
+      if (item.quantity > availableQuantity) {
+        setNotice({
+          show: true,
+          message: `${item.title} exceeds available stock. Please adjust the quantity.`,
+          isError: true
+        });
+        break;
+      }
+    }
+  }, [cart, user]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -82,31 +139,51 @@ export default function PaymentPage() {
       return;
     }
 
+    const cartValidation = validateCartBeforeCheckout();
+    if (!cartValidation.ok) {
+      setNotice({ show: true, message: cartValidation.message, isError: true });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await api.checkout({
-        userId: user.id,
-        items: cart,
-        payment: {
-          cardName,
-          cardNumber: cardNumClean,
-          cardExpiry,
-          cardCvv,
-          billingAddress,
-          billingPostal
-        }
-      }, user);
+      await api.checkout(
+        {
+          userId: user.id,
+          items: cart.map((item) => ({
+            id: item.id,
+            quantity: item.quantity
+          })),
+          payment: {
+            cardName,
+            cardNumber: cardNumClean,
+            cardExpiry,
+            cardCvv,
+            billingAddress,
+            billingPostal
+          }
+        },
+        user
+      );
 
       clearCart();
       setSuccess(true);
-      setNotice({ show: true, message: 'Order placed successfully! Thank you for your purchase.', isError: false });
+      setNotice({
+        show: true,
+        message: 'Order placed successfully! Thank you for your purchase.',
+        isError: false
+      });
 
       setTimeout(() => {
         navigate('/');
       }, 2000);
     } catch (error) {
-      setNotice({ show: true, message: 'Unable to place order. Please try again.', isError: true });
+      setNotice({
+        show: true,
+        message: error.message || 'Unable to place order. Please try again.',
+        isError: true
+      });
       setLoading(false);
     }
   };
@@ -302,12 +379,74 @@ export default function PaymentPage() {
                 {success ? 'Order confirmed!' : 'Your cart is empty'}
               </p>
             ) : (
-              cart.map(item => (
-                <div key={item.id} className="order-item">
-                  <span>{item.title} x{item.quantity}</span>
-                  <span><strong>{formatPrice(item.price * item.quantity)}</strong></span>
-                </div>
-              ))
+              cart.map((item) => {
+                const availableQuantity = Number(item.availableQuantity ?? item.quantity ?? 1);
+                const isOwnListing = Boolean(item.sellerId && user?.id && item.sellerId === user.id);
+                const isOutOfStock = availableQuantity <= 0;
+
+                return (
+                  <div key={item.id} className="order-item" style={{ display: 'grid', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <span>
+                        <strong>{item.title}</strong>
+                      </span>
+                      <span>
+                        <strong>{formatPrice(item.price * item.quantity)}</strong>
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                        disabled={loading || success}
+                      >
+                        -
+                      </button>
+
+                      <span>Qty: {item.quantity}</span>
+
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          const nextQuantity = Number(item.quantity || 0) + 1;
+                          if (nextQuantity > availableQuantity) {
+                            setNotice({
+                              show: true,
+                              message: `Cannot add more. Only ${availableQuantity} item(s) available for ${item.title}.`,
+                              isError: true
+                            });
+                            return;
+                          }
+                          updateCartItemQuantity(item.id, nextQuantity);
+                        }}
+                        disabled={loading || success || isOutOfStock || isOwnListing}
+                      >
+                        +
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => removeFromCart(item.id)}
+                        disabled={loading || success}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {isOwnListing
+                        ? 'You cannot purchase your own listing.'
+                        : isOutOfStock
+                          ? 'Out of stock.'
+                          : `Stock available: ${availableQuantity}`}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
           <div className="order-total">
