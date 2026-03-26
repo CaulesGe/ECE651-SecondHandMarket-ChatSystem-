@@ -47,6 +47,54 @@ export const api = {
     return res.json();
   },
 
+
+  async getProfile(user) {
+    const res = await fetch(`${API_BASE}/profile`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load profile');
+    return data;
+  },
+
+  async updateProfile(payload, user) {
+    const res = await fetch(`${API_BASE}/profile`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to update profile');
+    return data;
+  },
+
+  async getMyTransactions(user) {
+    const res = await fetch(`${API_BASE}/my-transactions`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load purchases');
+    return data;
+  },
+
+  async getMyListings(user) {
+    const res = await fetch(`${API_BASE}/my-listings`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load selling items');
+    return data;
+  },
+
+  async getMySoldListings(user) {
+    const res = await fetch(`${API_BASE}/my-sold-listings`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load sold items');
+    return data;
+  },
+
   // Goods
 
   async getGoods(search = '', category = '', user = null) {
@@ -170,14 +218,12 @@ export const api = {
   async checkout(payload, user) {
     const res = await fetch(`${API_BASE}/transactions/checkout`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-role': user.role
-      },
+      headers: getAuthHeaders(user),
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Checkout failed');
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Checkout failed');
+    return data;
   },
 
   // Admin

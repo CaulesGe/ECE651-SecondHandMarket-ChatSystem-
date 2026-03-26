@@ -431,7 +431,15 @@ const seedIfEmpty = async () => {
       { id: "g_7004", title: "Audio-Technica AT2020 Mic Bundle", description: "Condenser mic with boom arm, shock mount, pop filter, and XLR cable.", price: 140, condition: "Like New", category: "Music", images: JSON.stringify(["https://picsum.photos/seed/microphone/600/400"]), sellerName: "Ashley Brown", location: "Waterloo, ON", listedAt: new Date("2026-01-17T12:30:00.000Z") },
     ];
 
-    await prisma.goods.createMany({ data: dummyGoods });
+    await prisma.goods.createMany({
+      data: dummyGoods.map((item) => ({
+        ...item,
+        quantity: 1,
+        status: "available",
+        soldAt: null,
+        soldToUserId: null
+      }))
+    });
   }
 
   // Backfill sellerId for legacy listings so chat can resolve a seller user.
@@ -495,6 +503,17 @@ const buildFavoriteSet = async (userId) => {
 
   return new Set(favorites.map((item) => item.goodsId));
 };
+
+const toProfileResponse = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  createdAt: user.createdAt,
+  address: user.address || '',
+  phone: user.phone || '',
+  gender: user.gender || ''
+});
 
 const toGoodsResponse = (item, favoriteSet = new Set()) => ({
   ...item,
@@ -865,40 +884,16 @@ app.post("/api/auth/resend-verification", async (req, res) => {
   return res.json({ message: "Verification email resent." });
 });
 
-
-// Get all goods with optional search and category filter
-// app.get("/api/goods", async (req, res) => {
-//   const { search, category, limit } = req.query;
-  
-//   let where = {};
-//   if (search) {
-//     where.OR = [
-//       { title: { contains: search } },
-//       { description: { contains: search } },
-//       { category: { contains: search } }
-//     ];
-//   }
-//   if (category && category !== "All") {
-//     where.category = category;
-//   }
-
-//   const goods = await prisma.goods.findMany({
-//     where,
-//     orderBy: { listedAt: "desc" },
-//     take: limit ? parseInt(limit) : undefined
-//   });
-  
-//   const items = goods.map((item) => ({
-//     ...item,
-//     images: item.images ? JSON.parse(item.images) : []
-//   }));
-//   res.json({ items });
-// });
 app.get("/api/goods", async (req, res) => {
   const { search, category, limit } = req.query;
   const userId = req.header("x-user-id");
 
-  let where = {};
+  let where = {
+    status: "available",
+    quantity: {
+      gt: 0
+    }
+  };
   if (search) {
     where.OR = [
       { title: { contains: search } },
@@ -957,46 +952,6 @@ app.get("/api/goods/:id", async (req, res) => {
   });
 });
 
-// Get recommendations based on category and exclude current item
-// app.get("/api/goods/:id/recommendations", async (req, res) => {
-//   const { id } = req.params;
-//   const { limit = 8 } = req.query;
-  
-//   const currentItem = await prisma.goods.findUnique({ where: { id } });
-//   if (!currentItem) {
-//     return res.status(404).json({ message: "Product not found" });
-//   }
-
-//   // Get items from same category, excluding current item
-//   const similarItems = await prisma.goods.findMany({
-//     where: {
-//       category: currentItem.category,
-//       id: { not: id }
-//     },
-//     orderBy: { listedAt: "desc" },
-//     take: parseInt(limit)
-//   });
-
-//   // If not enough similar items, get popular items from other categories
-//   let recommendations = similarItems;
-//   if (recommendations.length < parseInt(limit)) {
-//     const otherItems = await prisma.goods.findMany({
-//       where: {
-//         id: { notIn: [id, ...recommendations.map(i => i.id)] }
-//       },
-//       orderBy: { listedAt: "desc" },
-//       take: parseInt(limit) - recommendations.length
-//     });
-//     recommendations = [...recommendations, ...otherItems];
-//   }
-
-//   const items = recommendations.map((item) => ({
-//     ...item,
-//     images: item.images ? JSON.parse(item.images) : []
-//   }));
-  
-//   res.json({ items });
-// });
 app.get("/api/goods/:id/recommendations", async (req, res) => {
   const { id } = req.params;
   const { limit = 8 } = req.query;
@@ -1010,6 +965,10 @@ app.get("/api/goods/:id/recommendations", async (req, res) => {
   const similarItems = await prisma.goods.findMany({
     where: {
       category: currentItem.category,
+      status: "available",
+      quantity: {
+        gt: 0
+      },
       id: { not: id }
     },
     orderBy: { listedAt: "desc" },
@@ -1020,6 +979,10 @@ app.get("/api/goods/:id/recommendations", async (req, res) => {
   if (recommendations.length < parseInt(limit)) {
     const otherItems = await prisma.goods.findMany({
       where: {
+        status: "available",
+        quantity: {
+          gt: 0
+        },
         id: { notIn: [id, ...recommendations.map((i) => i.id)] }
       },
       orderBy: { listedAt: "desc" },
@@ -1211,14 +1174,19 @@ app.post("/api/goods/upload-image", requireRole(["admin", "user"]), (req, res) =
 
 // Create new listing
 app.post("/api/goods", requireRole(["admin", "user"]), async (req, res) => {
-  const { title, description, price, condition, category, images, location } = req.body || {};
+  const { title, description, price, condition, category, images, location, quantity } = req.body || {};
 
   if (!title || !price || !condition || !category) {
     return res.status(400).json({ message: "Missing required fields." });
   }
-  
+
+  const parsedQuantity = Number.parseInt(quantity, 10);
+  const normalizedQuantity =
+    Number.isInteger(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 1;
+
   const sellerName = req.header("x-user-name") || "Community Seller";
   const sellerId = req.header("x-user-id") || null;
+
   const newItem = {
     id: `g_${Date.now()}`,
     title,
@@ -1230,12 +1198,60 @@ app.post("/api/goods", requireRole(["admin", "user"]), async (req, res) => {
     sellerId,
     sellerName,
     location: location || "Waterloo, ON",
-    listedAt: new Date()
+    listedAt: new Date(),
+    quantity: normalizedQuantity,
+    status: normalizedQuantity > 0 ? "available" : "sold",
+    soldAt: null,
+    soldToUserId: null
   };
-  
+
   await prisma.goods.create({ data: newItem });
+
   return res.status(201).json({
-    item: { ...newItem, images: JSON.parse(newItem.images) }
+    item: {
+      ...newItem,
+      images: JSON.parse(newItem.images)
+    }
+  });
+});
+
+app.get("/api/profile", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId }
+  });
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found." });
+  }
+
+  return res.json({ profile: toProfileResponse(user) });
+});
+
+app.patch("/api/profile", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const { name, address, phone, gender } = req.body || {};
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: normalizeOptionalString(name) ?? undefined,
+      address: normalizeOptionalString(address),
+      phone: normalizeOptionalString(phone),
+      gender: normalizeOptionalString(gender)
+    }
+  });
+
+  return res.json({
+    profile: toProfileResponse(updatedUser)
   });
 });
 
@@ -1254,90 +1270,220 @@ app.get("/api/transactions", requireRole(["admin"]), async (_req, res) => {
   res.json({ items: transactions });
 });
 
+app.get("/api/my-transactions", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: { userId },
+    include: {
+      items: true
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  return res.json({ items: transactions });
+});
+
+app.get("/api/my-listings", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const favoriteSet = await buildFavoriteSet(userId);
+
+  const items = await prisma.goods.findMany({
+    where: {
+      sellerId: userId,
+      status: "available",
+      quantity: {
+        gt: 0
+      }
+    },
+    orderBy: { listedAt: "desc" }
+  });
+
+  return res.json({
+    items: items.map((item) => toGoodsResponse(item, favoriteSet))
+  });
+});
+
+app.get("/api/my-sold-listings", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) {
+    return res.status(400).json({ message: "Missing user id." });
+  }
+
+  const items = await prisma.goods.findMany({
+    where: {
+      sellerId: userId,
+      quantity: 0
+    },
+    orderBy: { soldAt: "desc" }
+  });
+
+  return res.json({
+    items: items.map((item) => ({
+      ...item,
+      images: parseImageList(item.images)
+    }))
+  });
+});
+
 app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (req, res) => {
+  const headerUserId = req.header("x-user-id");
   const { userId, items, payment } = req.body || {};
-  if (!userId || !Array.isArray(items) || items.length === 0) {
+
+  if (!headerUserId || !userId || headerUserId !== userId) {
+    return res.status(400).json({ message: "Invalid user context." });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ message: "Invalid checkout payload." });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true, email: true }
-  });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true }
+    });
 
-  if (!user) {
-    return res.status(404).json({ message: "User not found." });
-  }
-
-  const goods = await prisma.goods.findMany();
-  const enrichedItems = items
-    .map((item) => {
-      const found = goods.find((g) => g.id === item.id);
-      if (!found) return null;
-      return {
-        id: found.id,
-        title: found.title,
-        price: found.price,
-        quantity: Number(item.quantity || 1)
-      };
-    })
-    .filter(Boolean);
-
-  const total = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const cardNumber = payment?.cardNumber || "";
-  const last4 = cardNumber ? cardNumber.slice(-4) : "0000";
-
-  const newTransaction = {
-    id: `t_${Date.now()}`,
-    userId,
-    total,
-    status: "pending",
-    createdAt: new Date(),
-    last4
-  };
-
-  await prisma.transaction.create({
-    data: {
-      ...newTransaction,
-      items: {
-        create: enrichedItems.map((item) => ({
-          goodsId: item.id,
-          title: item.title,
-          price: item.price,
-          quantity: item.quantity
-        }))
-      }
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
     }
-  });
 
-  if (user.email && isEmailConfigured()) {
-    try {
-      await sendOrderConfirmationEmail({
-        to: user.email,
-        name: user.name,
-        transactionId: newTransaction.id,
-        items: enrichedItems,
-        total,
-        last4,
-        createdAt: newTransaction.createdAt
+    const result = await prisma.$transaction(async (tx) => {
+      const requestedItems = items.map((item) => ({
+        id: String(item.id),
+        quantity: Math.max(1, Number.parseInt(item.quantity, 10) || 1)
+      }));
+
+      const itemIds = [...new Set(requestedItems.map((item) => item.id))];
+
+      const goods = await tx.goods.findMany({
+        where: {
+          id: { in: itemIds },
+          status: "available",
+          quantity: {
+            gt: 0
+          }
+        }
       });
-    } catch (e) {
-      console.error("[CHECKOUT EMAIL] failed to send:", e?.message || e);
-    }
-  } else if (!isEmailConfigured()) {
-    console.log(
-      "[CHECKOUT EMAIL] Email not configured. Skipping order email for:",
-      user.email || user.id
-    );
-  }
 
-  return res.status(201).json({
-    transaction: {
-      ...newTransaction,
-      items: enrichedItems,
-      payment: { method: "card", last4 }
+      const goodsMap = new Map(goods.map((g) => [g.id, g]));
+
+      const enrichedItems = [];
+      for (const requested of requestedItems) {
+        const found = goodsMap.get(requested.id);
+
+        if (!found) {
+          throw new Error(`Item ${requested.id} is no longer available.`);
+        }
+
+        if (found.sellerId && found.sellerId === userId) {
+          throw new Error(`You cannot buy your own listing: ${found.title}.`);
+        }
+
+        if (requested.quantity > found.quantity) {
+          throw new Error(
+            `${found.title} only has ${found.quantity} item(s) left in stock.`
+          );
+        }
+
+        enrichedItems.push({
+          id: found.id,
+          title: found.title,
+          price: found.price,
+          quantity: requested.quantity,
+          currentStock: found.quantity,
+          sellerId: found.sellerId || null
+        });
+      }
+
+      const total = enrichedItems.reduce(
+        (sum, item) => sum + Number(item.price) * Number(item.quantity),
+        0
+      );
+
+      const cardNumber = payment?.cardNumber || "";
+      const last4 = cardNumber ? cardNumber.slice(-4) : "0000";
+      const now = new Date();
+
+      const newTransaction = await tx.transaction.create({
+        data: {
+          id: `t_${Date.now()}`,
+          userId,
+          total,
+          status: "completed",
+          createdAt: now,
+          last4,
+          items: {
+            create: enrichedItems.map((item) => ({
+              goodsId: item.id,
+              title: item.title,
+              price: item.price,
+              quantity: item.quantity
+            }))
+          }
+        },
+        include: {
+          items: true
+        }
+      });
+
+      for (const item of enrichedItems) {
+        const nextQuantity = item.currentStock - item.quantity;
+
+        await tx.goods.update({
+          where: { id: item.id },
+          data: {
+            quantity: nextQuantity,
+            status: nextQuantity === 0 ? "sold" : "available",
+            soldAt: nextQuantity === 0 ? now : null,
+            soldToUserId: nextQuantity === 0 ? userId : null
+          }
+        });
+      }
+
+      return {
+        transaction: {
+          ...newTransaction,
+          payment: { method: "card", last4 }
+        },
+        emailItems: enrichedItems
+      };
+    });
+
+    if (user.email && isEmailConfigured()) {
+      try {
+        await sendOrderConfirmationEmail({
+          to: user.email,
+          name: user.name,
+          transactionId: result.transaction.id,
+          items: result.emailItems,
+          total: result.transaction.total,
+          last4: result.transaction.payment.last4,
+          createdAt: result.transaction.createdAt
+        });
+      } catch (e) {
+        console.error("[CHECKOUT EMAIL] failed to send:", e?.message || e);
+      }
+    } else if (!isEmailConfigured()) {
+      console.log(
+        "[CHECKOUT EMAIL] Email not configured. Skipping order email for:",
+        user.email || user.id
+      );
     }
-  });
+
+    return res.status(201).json(result);
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message || "Checkout failed."
+    });
+  }
 });
 
 // Catch-all route: serve React app for any non-API routes (client-side routing)
