@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
@@ -7,8 +7,9 @@ import { api, formatPrice } from '../utils/api';
 import ProductCard from '../components/ProductCard';
 
 export default function ProfilePage() {
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, updateUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [tab, setTab] = useState('purchased');
 
@@ -29,19 +30,21 @@ export default function ProfilePage() {
   const [drafts, setDrafts] = useState([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
 
-  const [purchased, setPurchased] = useState([]);
-  const [purchasedLoading, setPurchasedLoading] = useState(false);
-
   const [selling, setSelling] = useState([]);
   const [sellingLoading, setSellingLoading] = useState(false);
 
-  const [sold, setSold] = useState([]);
-  const [soldLoading, setSoldLoading] = useState(false);
+  const [purchaseHistory, setPurchaseHistory] = useState([]);
+  const [purchaseHistoryLoading, setPurchaseHistoryLoading] = useState(false);
 
-  const [notice, setNotice] = useState('');
+  const [salesHistory, setSalesHistory] = useState([]);
+  const [salesHistoryLoading, setSalesHistoryLoading] = useState(false);
+
+  const [reviews, setReviews] = useState({ received: [], given: [] });
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   const handleChange = (e) => {
-    setProfile((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setProfile((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFavoriteChange = (itemId, nextIsFavorited) => {
@@ -66,21 +69,21 @@ export default function ProfilePage() {
         gender: res.profile.gender || '',
       });
     } catch (error) {
-      setNotice(error.message || 'Failed to load profile.');
+      alert(error.message || 'Failed to load profile.');
     } finally {
       setProfileLoading(false);
     }
   };
 
-  const loadPurchased = async () => {
+  const loadPurchaseHistory = async () => {
     try {
-      setPurchasedLoading(true);
-      const res = await api.getMyTransactions(user);
-      setPurchased(res.items || []);
+      setPurchaseHistoryLoading(true);
+      const res = await api.getMyPurchaseHistory(user);
+      setPurchaseHistory(res.items || []);
     } catch (error) {
-      setNotice(error.message || 'Failed to load purchased items.');
+      alert(error.message || 'Failed to load purchase history.');
     } finally {
-      setPurchasedLoading(false);
+      setPurchaseHistoryLoading(false);
     }
   };
 
@@ -90,21 +93,21 @@ export default function ProfilePage() {
       const res = await api.getMyListings(user);
       setSelling(res.items || []);
     } catch (error) {
-      setNotice(error.message || 'Failed to load selling items.');
+      alert(error.message || 'Failed to load selling items.');
     } finally {
       setSellingLoading(false);
     }
   };
 
-  const loadSold = async () => {
+  const loadSalesHistory = async () => {
     try {
-      setSoldLoading(true);
-      const res = await api.getMySoldListings(user);
-      setSold(res.items || []);
+      setSalesHistoryLoading(true);
+      const res = await api.getMySalesHistory(user);
+      setSalesHistory(res.items || []);
     } catch (error) {
-      setNotice(error.message || 'Failed to load sold items.');
+      alert(error.message || 'Failed to load sold records.');
     } finally {
-      setSoldLoading(false);
+      setSalesHistoryLoading(false);
     }
   };
 
@@ -114,7 +117,7 @@ export default function ProfilePage() {
       const res = await api.getDrafts(user);
       setDrafts(res.items || []);
     } catch (error) {
-      setNotice(error.message || 'Failed to load drafts.');
+      alert(error.message || 'Failed to load drafts.');
     } finally {
       setDraftsLoading(false);
     }
@@ -126,9 +129,24 @@ export default function ProfilePage() {
       const res = await api.getFavorites(user);
       setFavorites(res.items || []);
     } catch (error) {
-      setNotice(error.message || 'Failed to load favorites.');
+      alert(error.message || 'Failed to load favorites.');
     } finally {
       setFavoritesLoading(false);
+    }
+  };
+
+  const loadReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      const res = await api.getMyTradeReviews(user);
+      setReviews({
+        received: res.received || [],
+        given: res.given || []
+      });
+    } catch (error) {
+      alert(error.message || 'Failed to load reviews.');
+    } finally {
+      setReviewsLoading(false);
     }
   };
 
@@ -141,39 +159,56 @@ export default function ProfilePage() {
     if (!isLoggedIn || !user) return;
 
     if (tab === 'purchased') {
-      loadPurchased();
+      loadPurchaseHistory();
     } else if (tab === 'selling') {
       loadSelling();
     } else if (tab === 'sold') {
-      loadSold();
+      loadSalesHistory();
     } else if (tab === 'drafts') {
       loadDrafts();
     } else if (tab === 'favorites') {
       loadFavorites();
+    } else if (tab === 'reviews') {
+      loadReviews();
     }
   }, [tab, isLoggedIn, user]);
+
+  useEffect(() => {
+    if (location.state?.openTab) {
+      setTab(location.state.openTab);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   const handleSave = async () => {
     try {
       setSaveLoading(true);
-      setNotice('');
 
-      const res = await api.updateProfile(
-        {
-          name: profile.name,
-          address: profile.address,
-          phone: profile.phone,
-          gender: profile.gender,
-        },
-        user
-      );
+      const payload = {
+        name: profile.name.trim(),
+        address: profile.address,
+        phone: profile.phone,
+        gender: profile.gender,
+      };
 
-      setProfile({
+      const res = await api.updateProfile(payload, user);
+      console.log('update profile response:', res);
+
+      const nextProfile = {
         name: res.profile.name || '',
         address: res.profile.address || '',
         email: res.profile.email || '',
         phone: res.profile.phone || '',
         gender: res.profile.gender || '',
+      };
+      setProfile(nextProfile);
+
+      updateUser({
+        name: nextProfile.name,
+        email: nextProfile.email,
+        address: nextProfile.address,
+        phone: nextProfile.phone,
+        gender: nextProfile.gender
       });
 
       alert('Profile saved successfully.');
@@ -184,19 +219,7 @@ export default function ProfilePage() {
     }
   };
 
-  const purchasedItems = useMemo(() => {
-    return purchased.flatMap((tx) =>
-      (tx.items || []).map((item, index) => ({
-        ...item,
-        key: `${tx.id}-${item.goodsId}-${index}`,
-        transactionId: tx.id,
-        transactionStatus: tx.status,
-        transactionCreatedAt: tx.createdAt,
-      }))
-    );
-  }, [purchased]);
-
-  const initials = (profile.name || user?.name || 'U')
+  const initials = (profile.name?.trim() || user?.name?.trim() || 'U')
     .split(' ')
     .map((n) => n[0])
     .join('')
@@ -216,11 +239,12 @@ export default function ProfilePage() {
   }
 
   const isTabLoading =
-    (tab === 'purchased' && purchasedLoading) ||
+    (tab === 'purchased' && purchaseHistoryLoading) ||
     (tab === 'selling' && sellingLoading) ||
-    (tab === 'sold' && soldLoading) ||
+    (tab === 'sold' && salesHistoryLoading) ||
     (tab === 'drafts' && draftsLoading) ||
-    (tab === 'favorites' && favoritesLoading);
+    (tab === 'favorites' && favoritesLoading)
+    || (tab === 'reviews' && reviewsLoading);
 
   return (
     <>
@@ -232,15 +256,9 @@ export default function ProfilePage() {
         <div className="profile-layout">
           <div className="profile-card">
             <div className="avatar">{initials}</div>
-            <div className="username">{profile.name || user.name || 'User'}</div>
+            <div className="username">{profile.name?.trim() || user?.name?.trim() || 'User'}</div>
 
             <h2>Personal Information</h2>
-
-            {notice && (
-              <p style={{ marginBottom: '12px', color: 'var(--text-muted)' }}>
-                {notice}
-              </p>
-            )}
 
             {profileLoading ? (
               <p>Loading profile...</p>
@@ -343,6 +361,12 @@ export default function ProfilePage() {
               >
                 Favorites
               </button>
+              <button
+                className={tab === 'reviews' ? 'active' : ''}
+                onClick={() => setTab('reviews')}
+              >
+                Reviews
+              </button>
             </div>
 
             {isTabLoading ? (
@@ -352,29 +376,63 @@ export default function ProfilePage() {
                 </li>
               </ul>
             ) : tab === 'purchased' ? (
-              <ul className="product-list">
-                {purchasedItems.length === 0 ? (
-                  <li style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
-                    No purchased items yet
-                  </li>
+              <div className="profile-cards-grid">
+                {purchaseHistory.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)' }}>No purchased items yet.</p>
                 ) : (
-                  purchasedItems.map((item) => (
-                    <li key={item.key} className="product-item">
-                      <div>
-                        <div>
-                          <strong>{item.title}</strong> — {formatPrice(item.price)}
+                  purchaseHistory.map((item) => (
+                    <div
+                      key={`${item.transactionId}-${item.transactionItemId}`}
+                      className="card"
+                      style={{ cursor: item.goodsId ? 'pointer' : 'default', marginBottom: '16px' }}
+                      onClick={() => item.goodsId && navigate(`/product/${item.goodsId}`)}
+                    >
+                      <div className="card-body">
+                        <div className="card-badges">
+                          <span className="badge badge-success">{item.status}</span>
+                          <span className="badge badge-primary">Qty {item.quantity}</span>
                         </div>
-                        <div style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          Purchased on {new Date(item.transactionCreatedAt).toLocaleDateString()}
+
+                        <h3>{item.title}</h3>
+                        <p>Seller: {item.sellerName || 'Unknown seller'}</p>
+                        <div className="card-meta">
+                          Purchased on {new Date(item.purchasedAt).toLocaleDateString()}
                         </div>
                       </div>
-                      <span className="badge badge-success">
-                        {item.transactionStatus}
-                      </span>
-                    </li>
+
+                      <div className="card-footer" style={{ justifyContent: 'space-between' }}>
+                        <div className="price">
+                          <span className="price-currency">CAD</span> {formatPrice(item.price)}
+                        </div>
+
+                        {item.buyerReviewSubmitted ? (
+                          <button className="btn btn-sm btn-secondary" disabled>
+                            Reviewed
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/trade-review', {
+                                state: {
+                                  transactionItemId: item.transactionItemId,
+                                  direction: 'BUYER_TO_SELLER',
+                                  title: item.title,
+                                  targetName: item.sellerName || 'Seller',
+                                  fromTab: 'purchased'
+                                }
+                              });
+                            }}
+                          >
+                            Review Seller
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))
                 )}
-              </ul>
+              </div>
             ) : tab === 'selling' ? (
               selling.length === 0 ? (
                 <ul className="product-list">
@@ -392,21 +450,61 @@ export default function ProfilePage() {
                 </div>
               )
             ) : tab === 'sold' ? (
-              sold.length === 0 ? (
-                <ul className="product-list">
-                  <li style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
-                    No sold items yet
-                  </li>
-                </ul>
-              ) : (
-                <div>
-                  {sold.map((item) => (
-                    <div key={item.id} style={{ marginBottom: '16px' }}>
-                      <ProductCard item={item} />
+              <div className="profile-cards-grid">
+                {salesHistory.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)' }}>No sold records yet.</p>
+                ) : (
+                  salesHistory.map((item) => (
+                    <div
+                      key={`${item.transactionId}-${item.transactionItemId}`}
+                      className="card"
+                      style={{ marginBottom: '16px' }}
+                    >
+                      <div className="card-body">
+                        <div className="card-badges">
+                          <span className="badge badge-warning">Sold</span>
+                          <span className="badge badge-primary">Qty {item.quantity}</span>
+                        </div>
+
+                        <h3>{item.title}</h3>
+                        <p>Sold to: {item.buyerName}</p>
+                        <div className="card-meta">
+                          Sold on {new Date(item.soldAt).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      <div className="card-footer" style={{ justifyContent: 'space-between' }}>
+                        <div className="price">
+                          <span className="price-currency">CAD</span> {formatPrice(item.price)}
+                        </div>
+
+                        {item.sellerReviewSubmitted ? (
+                          <button className="btn btn-sm btn-secondary" disabled>
+                            Reviewed
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() =>
+                              navigate('/trade-review', {
+                                state: {
+                                  transactionItemId: item.transactionItemId,
+                                  direction: 'SELLER_TO_BUYER',
+                                  title: item.title,
+                                  targetName: item.buyerName || 'Buyer',
+                                  fromTab: 'sold'
+                                }
+                              })
+                            }
+                          >
+                            Review Buyer
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )
+                  ))
+                )}
+              </div>
             ) : tab === 'drafts' ? (
               <ul className="product-list">
                 {drafts.length === 0 ? (
@@ -435,6 +533,58 @@ export default function ProfilePage() {
                   ))
                 )}
               </ul>
+            ) : tab === 'reviews' ? (
+              <div>
+                <h3 style={{ marginBottom: '16px' }}>Received Reviews</h3>
+                {reviews.received.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+                    No one has reviewed you yet.
+                  </p>
+                ) : (
+                  reviews.received.map((review) => (
+                    <div key={`received-${review.id}`} className="card" style={{ marginBottom: '16px' }}>
+                      <div className="card-body">
+                        <div className="card-badges">
+                          <span className="badge badge-primary">{'★'.repeat(review.rating)}</span>
+                          <span className="badge badge-success">
+                            {review.direction === 'BUYER_TO_SELLER' ? 'Buyer → Seller' : 'Seller → Buyer'}
+                          </span>
+                        </div>
+                        <h3>{review.title || 'Reviewed item'}</h3>
+                        <p>From: {review.reviewerName || 'Unknown user'}</p>
+                        <div className="card-meta">
+                          {review.comment || 'No comment provided.'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                <h3 style={{ margin: '24px 0 16px' }}>Given Reviews</h3>
+                {reviews.given.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)' }}>
+                    You have not written any reviews yet.
+                  </p>
+                ) : (
+                  reviews.given.map((review) => (
+                    <div key={`given-${review.id}`} className="card" style={{ marginBottom: '16px' }}>
+                      <div className="card-body">
+                        <div className="card-badges">
+                          <span className="badge badge-primary">{'★'.repeat(review.rating)}</span>
+                          <span className="badge badge-warning">
+                            {review.direction === 'BUYER_TO_SELLER' ? 'You reviewed seller' : 'You reviewed buyer'}
+                          </span>
+                        </div>
+                        <h3>{review.title || 'Reviewed item'}</h3>
+                        <p>To: {review.revieweeName || 'Unknown user'}</p>
+                        <div className="card-meta">
+                          {review.comment || 'No comment provided.'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             ) : (
               <ul className="product-list">
                 {favorites.length === 0 ? (

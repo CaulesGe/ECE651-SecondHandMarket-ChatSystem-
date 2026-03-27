@@ -95,6 +95,33 @@ export const api = {
     return data;
   },
 
+  async getMyPurchaseHistory(user) {
+    const res = await fetch(`${API_BASE}/my-purchase-history`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load purchase history');
+    return data;
+  },
+
+  async getMySalesHistory(user) {
+    const res = await fetch(`${API_BASE}/my-sales-history`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load sales history');
+    return data;
+  },
+
+  async getMyReviewPrompts(user) {
+    const res = await fetch(`${API_BASE}/my-review-prompts`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load review prompts');
+    return data;
+  },
+
   // Goods
 
   async getGoods(search = '', category = '', user = null) {
@@ -433,6 +460,26 @@ export const api = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'Failed to remove favorite');
+    return data;
+  },
+
+  async createTradeReview(payload, user) {
+    const res = await fetch(`${API_BASE}/trade-reviews`, {
+      method: 'POST',
+      headers: getAuthHeaders(user),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to submit review');
+    return data;
+  },
+
+  async getMyTradeReviews(user) {
+    const res = await fetch(`${API_BASE}/trade-reviews/me`, {
+      headers: getAuthHeaders(user)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to load trade reviews');
     return data;
   },
 

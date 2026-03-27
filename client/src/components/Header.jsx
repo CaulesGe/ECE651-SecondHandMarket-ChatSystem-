@@ -68,7 +68,9 @@ export default function Header({ showSearch = true, subtitle = 'Buy & sell with 
       )}
 
       <nav className="nav-links">
-        <span className="user-badge">{isLoggedIn ? user.name : 'Guest'}</span>
+        <span className="user-badge">
+          {isLoggedIn ? (user?.name?.trim() || 'User') : 'Guest'}
+        </span>
         
         {!isLoggedIn ? (
           <>

@@ -8,7 +8,15 @@ import { api, formatPrice } from '../utils/api';
 export default function PaymentPage() {
   const navigate = useNavigate();
   const { user, isLoggedIn } = useAuth();
-  const { cart, cartTotal, clearCart, updateCartItemQuantity, removeFromCart } = useCart();
+  const {
+    cart,
+    cartTotal,
+    clearCart,
+    updateCartItemQuantity,
+    removeFromCart,
+    updateRecentlyViewedItem,
+    removeRecentlyViewedItem
+  } = useCart();
 
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -17,17 +25,15 @@ export default function PaymentPage() {
   const [billingAddress, setBillingAddress] = useState('');
   const [billingCity, setBillingCity] = useState('');
   const [billingPostal, setBillingPostal] = useState('');
-  
+
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState({ show: false, message: '', isError: true });
   const [success, setSuccess] = useState(false);
 
-  // Card preview values
   const previewNumber = cardNumber || '**** **** **** ****';
   const previewName = cardName.toUpperCase() || 'YOUR NAME';
   const previewExpiry = cardExpiry || 'MM/YY';
 
-  // Format card number with spaces
   const formatCardNumber = (value) => {
     const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
     const matches = v.match(/\d{4,16}/g);
@@ -41,7 +47,6 @@ export default function PaymentPage() {
     return parts.length ? parts.join(' ') : v;
   };
 
-  // Format expiry date
   const formatExpiry = (value) => {
     const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
     if (v.length >= 2) {
@@ -87,7 +92,6 @@ export default function PaymentPage() {
 
     return { ok: true };
   };
-
 
   useEffect(() => {
     if (!user || cart.length === 0) return;
@@ -148,7 +152,7 @@ export default function PaymentPage() {
     setLoading(true);
 
     try {
-      await api.checkout(
+      const result = await api.checkout(
         {
           userId: user.id,
           items: cart.map((item) => ({
@@ -167,6 +171,17 @@ export default function PaymentPage() {
         user
       );
 
+      (result.inventoryUpdates || []).forEach((update) => {
+        if (Number(update.quantity || 0) <= 0) {
+          removeRecentlyViewedItem(update.id);
+        } else {
+          updateRecentlyViewedItem(update.id, {
+            quantity: update.quantity,
+            status: update.status
+          });
+        }
+      });
+
       clearCart();
       setSuccess(true);
       setNotice({
@@ -174,6 +189,32 @@ export default function PaymentPage() {
         message: 'Order placed successfully! Thank you for your purchase.',
         isError: false
       });
+
+      try {
+        const prompts = await api.getMyReviewPrompts(user);
+        const firstBuyerPrompt = prompts.buyerPending?.[0] || null;
+
+        if (firstBuyerPrompt) {
+          const wantsNow = window.confirm(
+            `Would you like to review ${firstBuyerPrompt.sellerName} for ${firstBuyerPrompt.title} now?\n\nChoose OK to review now, or Cancel to review later in Profile > Purchased.`
+          );
+
+          if (wantsNow) {
+            navigate('/trade-review', {
+              state: {
+                transactionItemId: firstBuyerPrompt.transactionItemId,
+                direction: 'BUYER_TO_SELLER',
+                title: firstBuyerPrompt.title,
+                targetName: firstBuyerPrompt.sellerName,
+                fromTab: 'purchased'
+              }
+            });
+            return;
+          }
+        }
+      } catch (promptError) {
+        console.error('Failed to load review prompts after checkout:', promptError);
+      }
 
       setTimeout(() => {
         navigate('/');

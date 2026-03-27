@@ -1,25 +1,48 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext(null);
 
+const getStorageKeys = (user) => {
+  const scope = user?.id ? `user_${user.id}` : 'guest';
+  return {
+    cartKey: `secondhand_cart_${scope}`,
+    recentlyViewedKey: `secondhand_recently_viewed_${scope}`
+  };
+};
+
+const readJsonArray = (key) => {
+  try {
+    const saved = localStorage.getItem(key);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error(`Failed to read localStorage key: ${key}`, error);
+    return [];
+  }
+};
+
 export function CartProvider({ children }) {
-  const [cart, setCart] = useState(() => {
-    const saved = localStorage.getItem('secondhand_cart');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const { user } = useAuth();
 
-  const [recentlyViewed, setRecentlyViewed] = useState(() => {
-    const saved = localStorage.getItem('secondhand_recently_viewed');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [cart, setCart] = useState([]);
+  const [recentlyViewed, setRecentlyViewed] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem('secondhand_cart', JSON.stringify(cart));
-  }, [cart]);
+    const { cartKey, recentlyViewedKey } = getStorageKeys(user);
+    setCart(readJsonArray(cartKey));
+    setRecentlyViewed(readJsonArray(recentlyViewedKey));
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
-    localStorage.setItem('secondhand_recently_viewed', JSON.stringify(recentlyViewed));
-  }, [recentlyViewed]);
+    const { cartKey } = getStorageKeys(user);
+    localStorage.setItem(cartKey, JSON.stringify(cart));
+  }, [cart, user?.id, user?.role]);
+
+  useEffect(() => {
+    const { recentlyViewedKey } = getStorageKeys(user);
+    localStorage.setItem(recentlyViewedKey, JSON.stringify(recentlyViewed));
+  }, [recentlyViewed, user?.id, user?.role]);
 
   const addToCart = (item, currentUser = null) => {
     const availableQuantity = Number(item?.availableQuantity ?? item?.quantity ?? 1);
@@ -138,9 +161,6 @@ export function CartProvider({ children }) {
     );
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
-
   const addToRecentlyViewed = (item) => {
     setRecentlyViewed((prev) => {
       const filtered = prev.filter((r) => r.id !== item.id);
@@ -151,6 +171,13 @@ export function CartProvider({ children }) {
   const clearRecentlyViewed = () => {
     setRecentlyViewed([]);
   };
+
+  const removeRecentlyViewedItem = (itemId) => {
+    setRecentlyViewed((prev) => prev.filter((item) => item.id !== itemId));
+  };
+
+  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
 
   return (
     <CartContext.Provider
@@ -165,6 +192,7 @@ export function CartProvider({ children }) {
         recentlyViewed,
         addToRecentlyViewed,
         clearRecentlyViewed,
+        removeRecentlyViewedItem,
         updateRecentlyViewedItem
       }}
     >
