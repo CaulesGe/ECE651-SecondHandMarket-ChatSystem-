@@ -740,7 +740,11 @@ export default function HomePage() {
                 loading={draftsLoading}
                 onEditDraft={handleEditDraft}
                 onDeleteDraft={handleDeleteDraft}
-                onOpenProfile={() => navigate('/profile')}
+                onOpenProfile={() =>
+                  navigate('/profile', {
+                    state: { openTab: 'drafts' }
+                  })
+                }
               />
             )}
           </div>

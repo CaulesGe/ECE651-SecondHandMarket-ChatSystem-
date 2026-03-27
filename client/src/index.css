@@ -1968,6 +1968,43 @@ a:hover {
   gap: 12px;
 }
 
+.profile-drafts-section {
+  display: grid;
+  gap: 16px;
+}
+
+.profile-tab-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-tab-intro h3 {
+  margin: 0 0 4px;
+}
+
+.profile-tab-intro p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.profile-draft-list li {
+  padding: 16px 12px;
+}
+
+.profile-draft-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-draft-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .draft-profile-meta {
   margin-top: 4px;
   display: flex;
@@ -1975,6 +2012,37 @@ a:hover {
   flex-wrap: wrap;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.profile-draft-description {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.profile-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-draft-delete-btn {
+  color: #9f1239;
+  border-color: rgba(159, 18, 57, 0.2);
+  background: rgba(159, 18, 57, 0.08);
+}
+
+.profile-draft-delete-btn:hover {
+  background: rgba(159, 18, 57, 0.14);
+  border-color: rgba(159, 18, 57, 0.28);
+}
+
+.profile-draft-empty {
+  color: var(--text-muted);
+  padding: 20px;
+  text-align: center;
 }
 
 /* ===== RESPONSIVE ===== */
@@ -2014,6 +2082,20 @@ a:hover {
   .products-card {
     width: 100%;
     max-width: 720px;
+  }
+
+  .profile-tab-intro {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .product-item-draft {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-draft-actions {
+    width: 100%;
   }
 
   .sell-panel-shell {

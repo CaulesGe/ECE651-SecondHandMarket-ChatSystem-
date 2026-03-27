@@ -11,7 +11,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [tab, setTab] = useState('purchased');
+  const [tab, setTab] = useState(() => location.state?.openTab || 'purchased');
 
   const [profile, setProfile] = useState({
     name: '',
@@ -29,6 +29,7 @@ export default function ProfilePage() {
 
   const [drafts, setDrafts] = useState([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
+  const [draftDeleteLoadingId, setDraftDeleteLoadingId] = useState('');
 
   const [selling, setSelling] = useState([]);
   const [sellingLoading, setSellingLoading] = useState(false);
@@ -179,6 +180,26 @@ export default function ProfilePage() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
+
+  const handleContinueEditingDraft = (draftId) => {
+    if (!draftId) return;
+    navigate(`/?draft=${encodeURIComponent(draftId)}`);
+  };
+
+  const handleDeleteDraft = async (draftId) => {
+    if (!draftId) return;
+    if (!window.confirm('Delete this draft?')) return;
+
+    try {
+      setDraftDeleteLoadingId(draftId);
+      await api.deleteDraft(draftId, user);
+      setDrafts((prev) => prev.filter((draft) => draft.id !== draftId));
+    } catch (error) {
+      alert(error.message || 'Failed to delete draft.');
+    } finally {
+      setDraftDeleteLoadingId('');
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -506,33 +527,70 @@ export default function ProfilePage() {
                 )}
               </div>
             ) : tab === 'drafts' ? (
-              <ul className="product-list">
-                {drafts.length === 0 ? (
-                  <li style={{ color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
-                    No drafts yet
-                  </li>
-                ) : (
-                  drafts.map((item) => (
-                    <li key={item.id} className="product-item product-item-draft">
-                      <div>
-                        <strong>{item.title || 'Untitled Draft'}</strong>
-                        <div className="draft-profile-meta">
-                          <span>{item.price ? formatPrice(item.price) : 'No price'}</span>
-                          <span>{item.category || 'No category'}</span>
-                          <span>{formatDraftUpdatedAt(item.updatedAt)}</span>
-                        </div>
-                      </div>
-                      <button
-                        className="btn btn-sm btn-secondary"
-                        onClick={() => navigate(`/?draft=${encodeURIComponent(item.id)}`)}
-                        type="button"
-                      >
-                        Continue Editing
-                      </button>
+              <div className="profile-drafts-section">
+                <div className="profile-tab-intro">
+                  <div>
+                    <h3>Posting Drafts</h3>
+                    <p>Continue saved listings or delete the ones you no longer need.</p>
+                  </div>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => navigate('/')}
+                    type="button"
+                  >
+                    New Posting
+                  </button>
+                </div>
+
+                <ul className="product-list profile-draft-list">
+                  {drafts.length === 0 ? (
+                    <li className="profile-draft-empty">
+                      No drafts yet
                     </li>
-                  ))
-                )}
-              </ul>
+                  ) : (
+                    drafts.map((item) => {
+                      const isDeleting = draftDeleteLoadingId === item.id;
+                      return (
+                        <li key={item.id} className="product-item product-item-draft">
+                          <div className="profile-draft-main">
+                            <div className="profile-draft-title">
+                              <strong>{item.title || 'Untitled Draft'}</strong>
+                              <span className="badge badge-warning">Draft</span>
+                            </div>
+                            <div className="draft-profile-meta">
+                              <span>{item.price ? formatPrice(item.price) : 'No price'}</span>
+                              <span>{item.category || 'No category'}</span>
+                              <span>{item.condition || 'No condition'}</span>
+                              <span>{formatDraftUpdatedAt(item.updatedAt)}</span>
+                            </div>
+                            {item.description ? (
+                              <p className="profile-draft-description">{item.description}</p>
+                            ) : null}
+                          </div>
+
+                          <div className="profile-draft-actions">
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => handleContinueEditingDraft(item.id)}
+                              type="button"
+                            >
+                              Continue Editing
+                            </button>
+                            <button
+                              className="btn btn-sm btn-secondary profile-draft-delete-btn"
+                              onClick={() => handleDeleteDraft(item.id)}
+                              disabled={isDeleting}
+                              type="button"
+                            >
+                              {isDeleting ? 'Deleting...' : 'Delete Draft'}
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })
+                  )}
+                </ul>
+              </div>
             ) : tab === 'reviews' ? (
               <div>
                 <h3 style={{ marginBottom: '16px' }}>Received Reviews</h3>
