@@ -1113,6 +1113,12 @@ app.get("/api/recommendations/personal", requireRole(["admin", "user"]), async (
 
   if (favoriteItems.length === 0 && cartItems.length === 0) {
     const fallback = await prisma.goods.findMany({
+      where: {
+        status: "available",
+        quantity: {
+          gt: 0
+        }
+      },
       orderBy: { listedAt: "desc" },
       take: parseInt(limit)
     });
@@ -1125,6 +1131,10 @@ app.get("/api/recommendations/personal", requireRole(["admin", "user"]), async (
 
   const candidates = await prisma.goods.findMany({
     where: {
+      status: "available",
+      quantity: {
+        gt: 0
+      },
       id: { notIn: Array.from(excludedIds) }
     }
   });
@@ -1239,15 +1249,32 @@ app.patch("/api/profile", requireRole(["admin", "user"]), async (req, res) => {
   }
 
   const { name, address, phone, gender } = req.body || {};
+  const normalizedName = normalizeOptionalString(name);
 
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      name: normalizeOptionalString(name) ?? undefined,
-      address: normalizeOptionalString(address),
-      phone: normalizeOptionalString(phone),
-      gender: normalizeOptionalString(gender)
+  const updatedUser = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: {
+        name: normalizedName ?? undefined,
+        address: normalizeOptionalString(address),
+        phone: normalizeOptionalString(phone),
+        gender: normalizeOptionalString(gender)
+      }
+    });
+
+    if (normalizedName) {
+      await tx.goods.updateMany({
+        where: { sellerId: userId },
+        data: { sellerName: normalizedName }
+      });
+
+      await tx.transactionItem.updateMany({
+        where: { sellerId: userId },
+        data: { sellerName: normalizedName }
+      });
     }
+
+    return user;
   });
 
   return res.json({
@@ -1399,7 +1426,9 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
           price: found.price,
           quantity: requested.quantity,
           currentStock: found.quantity,
-          sellerId: found.sellerId || null
+          sellerId: found.sellerId || null,
+          sellerId: found.sellerId || null,
+          sellerName: found.sellerName || null
         });
       }
 
@@ -1425,7 +1454,9 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
               goodsId: item.id,
               title: item.title,
               price: item.price,
-              quantity: item.quantity
+              quantity: item.quantity,
+              sellerId: item.sellerId || null,
+              sellerName: item.sellerName || null
             }))
           }
         },
@@ -1433,11 +1464,12 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
           items: true
         }
       });
-
+      
+      const inventoryUpdates = [];
       for (const item of enrichedItems) {
         const nextQuantity = item.currentStock - item.quantity;
 
-        await tx.goods.update({
+        const updated = await tx.goods.update({
           where: { id: item.id },
           data: {
             quantity: nextQuantity,
@@ -1446,6 +1478,11 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
             soldToUserId: nextQuantity === 0 ? userId : null
           }
         });
+        inventoryUpdates.push({
+          id: updated.id,
+          quantity: updated.quantity,
+          status: updated.status
+        });
       }
 
       return {
@@ -1453,7 +1490,8 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
           ...newTransaction,
           payment: { method: "card", last4 }
         },
-        emailItems: enrichedItems
+        emailItems: enrichedItems,
+        inventoryUpdates
       };
     });
 
@@ -1484,6 +1522,272 @@ app.post("/api/transactions/checkout", requireRole(["admin", "user"]), async (re
       message: error.message || "Checkout failed."
     });
   }
+});
+
+app.get("/api/my-purchase-history", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) return res.status(400).json({ message: "Missing user id." });
+
+  const transactions = await prisma.transaction.findMany({
+    where: { userId },
+    include: {
+      items: {
+        include: {
+          reviews: true
+        }
+      }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const items = transactions.flatMap((tx) =>
+    tx.items.map((item) => {
+      const buyerReview = item.reviews.find(
+        (review) => review.direction === "BUYER_TO_SELLER"
+      );
+
+      return {
+        transactionId: tx.id,
+        transactionItemId: item.id,
+        goodsId: item.goodsId,
+        title: item.title,
+        price: item.price,
+        quantity: item.quantity,
+        purchasedAt: tx.createdAt,
+        status: tx.status,
+        sellerId: item.sellerId,
+        sellerName: item.sellerName,
+        buyerReviewSubmitted: Boolean(buyerReview),
+        buyerReview
+      };
+    })
+  );
+
+  return res.json({ items });
+});
+
+app.get("/api/my-sales-history", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) return res.status(400).json({ message: "Missing user id." });
+
+  const soldItems = await prisma.transactionItem.findMany({
+    where: {
+      sellerId: userId
+    },
+    include: {
+      transaction: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      },
+      reviews: true
+    },
+    orderBy: {
+      transaction: {
+        createdAt: "desc"
+      }
+    }
+  });
+
+  const items = soldItems.map((item) => {
+    const sellerReview = item.reviews.find(
+      (review) => review.direction === "SELLER_TO_BUYER"
+    );
+
+    return {
+      transactionId: item.transactionId,
+      transactionItemId: item.id,
+      goodsId: item.goodsId,
+      title: item.title,
+      price: item.price,
+      quantity: item.quantity,
+      soldAt: item.transaction.createdAt,
+      buyerId: item.transaction.user.id,
+      buyerName: item.transaction.user.name,
+      buyerEmail: item.transaction.user.email,
+      sellerReviewSubmitted: Boolean(sellerReview),
+      sellerReview
+    };
+  });
+
+  return res.json({ items });
+});
+
+app.post("/api/trade-reviews", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  const { transactionItemId, direction, rating, comment } = req.body || {};
+
+  if (!userId) return res.status(400).json({ message: "Missing user id." });
+
+  const numericRating = Number(rating);
+  if (!transactionItemId || !direction || !Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+    return res.status(400).json({ message: "Invalid review payload." });
+  }
+
+  const item = await prisma.transactionItem.findUnique({
+    where: { id: Number(transactionItemId) },
+    include: {
+      transaction: true,
+      reviews: true
+    }
+  });
+
+  if (!item) {
+    return res.status(404).json({ message: "Transaction item not found." });
+  }
+
+  const existing = item.reviews.find((review) => review.direction === direction);
+  if (existing) {
+    return res.status(409).json({ message: "This review has already been submitted and cannot be changed." });
+  }
+
+  let reviewerId = null;
+  let revieweeId = null;
+
+  if (direction === "BUYER_TO_SELLER") {
+    if (item.transaction.userId !== userId) {
+      return res.status(403).json({ message: "Only the buyer can submit this review." });
+    }
+    reviewerId = userId;
+    revieweeId = item.sellerId;
+  } else if (direction === "SELLER_TO_BUYER") {
+    if (item.sellerId !== userId) {
+      return res.status(403).json({ message: "Only the seller can submit this review." });
+    }
+    reviewerId = userId;
+    revieweeId = item.transaction.userId;
+  } else {
+    return res.status(400).json({ message: "Invalid review direction." });
+  }
+
+  if (!revieweeId) {
+    return res.status(400).json({ message: "Missing review target." });
+  }
+
+  const review = await prisma.tradeReview.create({
+    data: {
+      transactionId: item.transactionId,
+      transactionItemId: item.id,
+      reviewerId,
+      revieweeId,
+      direction,
+      rating: numericRating,
+      comment: typeof comment === "string" ? comment.trim() : null
+    }
+  });
+
+  return res.status(201).json({ review });
+});
+
+app.get("/api/trade-reviews/me", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) return res.status(400).json({ message: "Missing user id." });
+
+  const reviews = await prisma.tradeReview.findMany({
+    where: {
+      OR: [
+        { reviewerId: userId },
+        { revieweeId: userId }
+      ]
+    },
+    include: {
+      reviewer: {
+        select: { id: true, name: true }
+      },
+      reviewee: {
+        select: { id: true, name: true }
+      },
+      transactionItem: {
+        select: { title: true }
+      }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const given = reviews
+    .filter((review) => review.reviewerId === userId)
+    .map((review) => ({
+      id: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      direction: review.direction,
+      title: review.transactionItem?.title || '',
+      reviewerName: review.reviewer?.name || '',
+      revieweeName: review.reviewee?.name || ''
+    }));
+
+  const received = reviews
+    .filter((review) => review.revieweeId === userId)
+    .map((review) => ({
+      id: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      direction: review.direction,
+      title: review.transactionItem?.title || '',
+      reviewerName: review.reviewer?.name || '',
+      revieweeName: review.reviewee?.name || ''
+    }));
+
+  return res.json({ given, received });
+});
+
+app.get("/api/my-review-prompts", requireRole(["admin", "user"]), async (req, res) => {
+  const userId = req.header("x-user-id");
+  if (!userId) return res.status(400).json({ message: "Missing user id." });
+
+  const purchases = await prisma.transaction.findMany({
+    where: { userId },
+    include: { items: { include: { reviews: true } } },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const buyerPending = purchases.flatMap((tx) =>
+    tx.items
+      .filter((item) => !item.reviews.some((review) => review.direction === "BUYER_TO_SELLER"))
+      .map((item) => ({
+        transactionItemId: item.id,
+        goodsId: item.goodsId,
+        title: item.title,
+        quantity: item.quantity,
+        sellerName: item.sellerName,
+        purchasedAt: tx.createdAt,
+        direction: "BUYER_TO_SELLER"
+      }))
+  );
+
+  const sales = await prisma.transactionItem.findMany({
+    where: { sellerId: userId },
+    include: {
+      transaction: {
+        include: {
+          user: { select: { id: true, name: true } }
+        }
+      },
+      reviews: true
+    },
+    orderBy: {
+      transaction: { createdAt: "desc" }
+    }
+  });
+
+  const sellerPending = sales
+    .filter((item) => !item.reviews.some((review) => review.direction === "SELLER_TO_BUYER"))
+    .map((item) => ({
+      transactionItemId: item.id,
+      goodsId: item.goodsId,
+      title: item.title,
+      quantity: item.quantity,
+      buyerName: item.transaction.user.name,
+      soldAt: item.transaction.createdAt,
+      direction: "SELLER_TO_BUYER"
+    }));
+
+  return res.json({
+    buyerPending,
+    sellerPending
+  });
 });
 
 // Catch-all route: serve React app for any non-API routes (client-side routing)

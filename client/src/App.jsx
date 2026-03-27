@@ -14,6 +14,7 @@ import ChatPage from './pages/ChatPage';
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import ForgotPasswordPage from './pages/ForgetPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import TradeReviewPage from './pages/TradeReviewPage';
 
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/forgetPassword" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/trade-review" element={<TradeReviewPage />} />
             </Routes>
           </ChatProvider>
         </CartProvider>
