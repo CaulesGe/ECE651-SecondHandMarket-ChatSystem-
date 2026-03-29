@@ -1,0 +1,25 @@
+
+> test:e2e
+> npm --prefix client run test:e2e
+
+
+> client@0.0.0 test:e2e
+> playwright test
+
+[2m[WebServer] [22m(node:56409) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[2m[WebServer] [22m(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 6 tests using 1 worker
+
+(node:56414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:56414) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/ChatPageTest/chatpage.e2e.spec.js:9:3 › ChatPage E2E (mocked) › redirects unauthenticated users from /chat to /login (514ms)
+  ✓  2 [chromium] › test/ChatPageTest/chatpage.e2e.spec.js:15:3 › ChatPage E2E (mocked) › hydrates conversations and defaults to first thread (485ms)
+  ✓  3 [chromium] › test/ChatPageTest/chatpage.e2e.spec.js:28:3 › ChatPage E2E (mocked) › switches threads and updates header/messages (416ms)
+  ✓  4 [chromium] › test/ChatPageTest/chatpage.e2e.spec.js:39:3 › ChatPage E2E (mocked) › sends text message via HTTP fallback and re-renders messages (483ms)
+  ✓  5 [chromium] › test/ChatPageTest/chatpage.e2e.spec.js:50:3 › ChatPage E2E (mocked) › shows withdraw on right-click for own message and updates withdrawn UI (408ms)
+  ✓  6 [chromium] › test/ChatPageTest/chatpage.e2e.spec.js:63:3 › ChatPage E2E (mocked) › does not show withdraw context menu for non-owned message (438ms)
+
+  6 passed (8.6s)
