@@ -6,6 +6,8 @@ DROP TABLE IF EXISTS "ConversationParticipant";
 DROP TABLE IF EXISTS "Conversation";
 DROP TABLE IF EXISTS "TransactionItem";
 DROP TABLE IF EXISTS "Transaction";
+DROP TABLE IF EXISTS "TradeReview";
+DROP TABLE IF EXISTS "Favorite";
 DROP TABLE IF EXISTS "Draft";
 DROP TABLE IF EXISTS "Goods";
 DROP TABLE IF EXISTS "User";
@@ -17,6 +19,9 @@ CREATE TABLE "User" (
   "password" TEXT NOT NULL,
   "role" TEXT NOT NULL,
   "createdAt" DATETIME NOT NULL,
+  "address" TEXT,
+  "phone" TEXT,
+  "gender" TEXT,
   "emailVerified" BOOLEAN NOT NULL DEFAULT false,
   "verificationToken" TEXT,
   "verificationExpires" DATETIME,
@@ -34,8 +39,31 @@ CREATE TABLE "Goods" (
   "sellerId" TEXT,
   "sellerName" TEXT NOT NULL,
   "location" TEXT NOT NULL,
-  "listedAt" DATETIME NOT NULL
+  "listedAt" DATETIME NOT NULL,
+  "quantity" INTEGER NOT NULL DEFAULT 1,
+  "status" TEXT NOT NULL DEFAULT 'available',
+  "soldAt" DATETIME,
+  "soldToUserId" TEXT
 );
+
+CREATE TABLE "Favorite" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "userId" TEXT NOT NULL,
+  "goodsId" TEXT NOT NULL,
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "Favorite_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "User" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT "Favorite_goodsId_fkey"
+    FOREIGN KEY ("goodsId") REFERENCES "Goods" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX "Favorite_userId_goodsId_key" ON "Favorite"("userId", "goodsId");
+CREATE INDEX "Favorite_userId_createdAt_idx" ON "Favorite"("userId", "createdAt");
+CREATE INDEX "Favorite_goodsId_idx" ON "Favorite"("goodsId");
 
 CREATE TABLE "Draft" (
   "id" TEXT NOT NULL PRIMARY KEY,
@@ -77,11 +105,49 @@ CREATE TABLE "TransactionItem" (
   "title" TEXT NOT NULL,
   "price" REAL NOT NULL,
   "quantity" INTEGER NOT NULL,
+  "sellerId" TEXT,
+  "sellerName" TEXT,
   CONSTRAINT "TransactionItem_transactionId_fkey"
     FOREIGN KEY ("transactionId") REFERENCES "Transaction" ("id")
     ON DELETE RESTRICT
     ON UPDATE CASCADE
 );
+
+CREATE TABLE "TradeReview" (
+  "id" TEXT NOT NULL PRIMARY KEY,
+  "transactionId" TEXT NOT NULL,
+  "transactionItemId" INTEGER NOT NULL,
+  "reviewerId" TEXT NOT NULL,
+  "revieweeId" TEXT NOT NULL,
+  "direction" TEXT NOT NULL,
+  "rating" INTEGER NOT NULL,
+  "comment" TEXT,
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "TradeReview_transactionId_fkey"
+    FOREIGN KEY ("transactionId") REFERENCES "Transaction" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT "TradeReview_transactionItemId_fkey"
+    FOREIGN KEY ("transactionItemId") REFERENCES "TransactionItem" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT "TradeReview_reviewerId_fkey"
+    FOREIGN KEY ("reviewerId") REFERENCES "User" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT "TradeReview_revieweeId_fkey"
+    FOREIGN KEY ("revieweeId") REFERENCES "User" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX "TradeReview_transactionItemId_direction_key"
+ON "TradeReview"("transactionItemId", "direction");
+CREATE INDEX "TradeReview_reviewerId_createdAt_idx"
+ON "TradeReview"("reviewerId", "createdAt");
+CREATE INDEX "TradeReview_revieweeId_createdAt_idx"
+ON "TradeReview"("revieweeId", "createdAt");
 
 CREATE TABLE "Conversation" (
   "id" TEXT NOT NULL PRIMARY KEY,

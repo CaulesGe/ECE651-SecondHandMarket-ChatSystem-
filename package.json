@@ -1,0 +1,11 @@
+{
+  "name": "ece651-g11",
+  "private": true,
+  "scripts": {
+    "test:frontend": "npm --prefix client run test:run",
+    "test:frontend:watch": "npm --prefix client run test",
+    "test:backend": "npm --prefix backend run test",
+    "test:e2e": "npm --prefix client run test:e2e",
+    "test:all": "npm run test:frontend && npm run test:backend"
+  }
+}

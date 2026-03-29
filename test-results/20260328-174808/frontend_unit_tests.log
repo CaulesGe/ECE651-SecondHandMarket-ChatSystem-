@@ -1,0 +1,177 @@
+
+> test:frontend
+> npm --prefix client run test:run
+
+
+> client@0.0.0 test:run
+> vitest run
+
+
+ RUN  v4.0.18 /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client
+
+stderr | src/pages/__tests__/ProfilePage.test.jsx > ProfilePage drafts tab > opens the drafts tab from navigation state and continues editing a selected draft
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/ProductPage.test.jsx > ProductPage > shows 'Product not found' when api.getGood fails
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+Error loading product: Error: Not found
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/__tests__/ProductPage.test.jsx:120:39
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:145:11
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:915:26
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1209:10)
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1653:37
+    at Traces.$ (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/vitest/dist/chunks/traces.CCmnQaNT.js:142:27)
+    at trace (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/vitest/dist/chunks/test.B8ej_ZHS.js:239:21)
+    at runTest (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1653:12)
+
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > publishes a product by calling api.createGood
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26808:9
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > publishes a product by calling api.createGood
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26808:9
+
+stderr | src/pages/__tests__/LoginPage.test.jsx > LoginPage > shows validation message when fields empty
+Warning: Invalid DOM property `class`. Did you mean `className`?
+    at button
+    at div
+    at div
+    at form
+    at section
+    at LoginPage (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/LoginPage.jsx:16:57)
+    at Router (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/RegisterPage.test.jsx > RegisterPage > validates required fields
+Warning: Invalid DOM property `class`. Did you mean `className`?
+    at button
+    at div
+    at div
+    at form
+    at section
+    at RegisterPage (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/RegisterPage.jsx:16:57)
+    at Router (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/pages/__tests__/ProfilePage.test.jsx (2 tests) 704ms
+     ✓ opens the drafts tab from navigation state and continues editing a selected draft  601ms
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > saves current listing input as draft by calling api.saveDraft
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at commitRootImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26974:5)
+
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > saves current listing input as draft by calling api.saveDraft
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at commitRootImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26974:5)
+
+ ✓ src/pages/__tests__/RegisterPage.test.jsx (2 tests) 856ms
+     ✓ validates required fields  396ms
+     ✓ calls api.register with inputs  454ms
+ ✓ src/pages/__tests__/HomePage.test.jsx (2 tests) 950ms
+     ✓ publishes a product by calling api.createGood  747ms
+ ✓ src/pages/__tests__/LoginPage.test.jsx (3 tests) 982ms
+     ✓ shows validation message when fields empty  392ms
+     ✓ shows resend button when EMAIL_NOT_VERIFIED  363ms
+ ❯ src/pages/__tests__/ProductPage.test.jsx (9 tests | 1 failed) 1502ms
+     ✓ shows 'Product not found' when api.getGood fails  313ms
+     ✓ disables purchase buttons and shows login notice when not logged in 204ms
+     × adds item to cart and shows feedback when clicking Add to Cart (logged in) 141ms
+     ✓ Buy Now adds to cart if not already there and navigates to /payment 93ms
+     ✓ Message Seller shows error when seller linkage missing 77ms
+     ✓ Message Seller blocks starting a conversation with yourself 106ms
+     ✓ Message Seller calls createConversation and navigates to /chat after success  471ms
+     ✓ renders recommendations section when api returns items 50ms
+     ✓ renders product details after loading 48ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__tests__/ProductPage.test.jsx > ProductPage > adds item to cart and shows feedback when clicking Add to Cart (logged in)
+AssertionError: expected "vi.fn()" to be called with arguments: [ ObjectContaining{…} ]
+
+Received: 
+
+  1st vi.fn() call:
+
+  [
+-   ObjectContaining {
++   {
++     "availableQuantity": 5,
+      "condition": "Good",
+      "id": "123",
+      "location": "Waterloo",
+      "price": 25,
++     "quantity": 1,
++     "sellerId": "seller-1",
+      "sellerName": "Alice",
+      "title": "Test Product",
++   },
++   {
++     "id": "buyer-1",
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ src/pages/__tests__/ProductPage.test.jsx:157:23
+    155| 
+    156|     expect(addToCart).toHaveBeenCalledTimes(1);
+    157|     expect(addToCart).toHaveBeenCalledWith(
+       |                       ^
+    158|       expect.objectContaining({
+    159|         id: baseProduct.id,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  1 failed | 17 passed (18)
+   Start at  17:48:20
+   Duration  3.63s (transform 1.65s, setup 585ms, import 5.08s, tests 4.99s, environment 3.89s)
+

@@ -180,6 +180,37 @@ npm run build
 ```
 The built files will be in `client/dist/`.
 
+## Testing
+
+### One-time setup
+Install dependencies in both sub-projects:
+```bash
+cd backend && npm install
+cd ../client && npm install
+cd ..
+```
+
+### Run tests from project root
+```bash
+bash setup.sh              # Install deps + run all tests + save logs
+npm run test:frontend       # Frontend unit tests (Vitest, run once)
+npm run test:frontend:watch # Frontend unit tests (watch mode)
+npm run test:backend        # Backend tests (Jest)
+npm run test:e2e            # Frontend E2E tests (Playwright)
+npm run test:all            # Frontend + backend
+```
+
+### Run tests directly in subfolders
+```bash
+cd client
+npm run test:run            # Vitest run once
+npm run test                # Vitest watch mode
+npm run test:e2e            # Playwright
+
+cd ../backend
+npm run test                # Jest
+```
+
 ## Default Accounts
 
 | Role  | Email                  | Password    |

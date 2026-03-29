@@ -1,0 +1,11 @@
+Test run timestamp: 20260328-174633
+Pass: 2
+Fail: 4
+Logs:
+  - backend_tests.log
+  - frontend_e2e_tests.log
+  - frontend_unit_tests.log
+  - install_backend.log
+  - install_client.log
+  - install_playwright_chromium.log
+  - summary.txt

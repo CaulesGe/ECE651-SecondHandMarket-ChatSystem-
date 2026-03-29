@@ -1,0 +1,42 @@
+
+> test:backend
+> npm --prefix backend run test
+
+
+> secondhand-backend@1.0.0 test
+> cross-env NODE_ENV=test DATABASE_URL=file:./test.db node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand
+
+(node:56054) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS tests/product.test.js
+PASS tests/chat.test.js
+PASS tests/draft.test.js
+PASS tests/auth.integration.test.js
+  ● Console
+
+    console.log
+      [REGISTER] test1@example.com token= bdec49b7e26b63b0a69233af918529b7eab6347892c925f67f04d0fb9111ba39
+
+      at log (server.js:787:11)
+
+    console.log
+      [REGISTER] token= bdec49b7e26b63b0a69233af918529b7eab6347892c925f67f04d0fb9111ba39
+
+      at log (server.js:829:11)
+
+    console.log
+      [REGISTER] test2@example.com token= 328711c45c1f44e6b199f59a94babcb2af420daefea63bf80ae0cd55b128cdd7
+
+      at log (server.js:787:11)
+
+    console.log
+      [REGISTER] test2@example.com token= 623f776ace3379975f4c6d92754f7cf76ee0503114d426f3711f78fbd50f3f4b
+
+      at log (server.js:869:11)
+
+
+Test Suites: 4 passed, 4 total
+Tests:       21 passed, 21 total
+Snapshots:   0 total
+Time:        2.381 s
+Ran all test suites.

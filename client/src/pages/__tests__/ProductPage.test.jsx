@@ -69,7 +69,9 @@ const baseProduct = {
   location: "Waterloo",
   listedAt: "2024-01-01T00:00:00.000Z",
   description: "Great condition",
-  images: []
+  images: [],
+  quantity: 5,
+  status: "available"
 };
 
 function setupMocks({
@@ -160,6 +162,9 @@ describe("ProductPage", () => {
         condition: baseProduct.condition,
         sellerName: baseProduct.sellerName,
         location: baseProduct.location
+      }),
+      expect.objectContaining({
+        id: "buyer-1"
       })
     );
 

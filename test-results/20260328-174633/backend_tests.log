@@ -1,0 +1,484 @@
+
+> test:backend
+> npm --prefix backend run test
+
+
+> secondhand-backend@1.0.0 test
+> cross-env NODE_ENV=test DATABASE_URL=file:./test.db node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand
+
+(node:49987) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL tests/product.test.js
+  ● Goods (product detail) integration › GET /api/goods/:id returns product detail with parsed images
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.goods.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/product.test.js:33:24
+
+      30 });
+      31 
+      32 test("GET /api/goods/:id returns product detail with parsed images", async () => {
+    → 33   await prisma.goods.create(
+    The column `quantity` does not exist in the current database.
+
+      31 |
+      32 |   test("GET /api/goods/:id returns product detail with parsed images", async () => {
+    > 33 |     await prisma.goods.create({
+         |     ^
+      34 |       data: {
+      35 |         id: "g_test_1",
+      36 |         title: "Test Laptop",
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/product.test.js:33:5)
+
+  ● Goods (product detail) integration › GET /api/goods/:id returns 404 when product not found
+
+    TypeError: Cannot read properties of null (reading 'port')
+
+      65 |   test("GET /api/goods/:id returns 404 when product not found", async () => {
+      66 |     const res = await request(app)
+    > 67 |       .get("/api/goods/does_not_exist")
+         |        ^
+      68 |       .expect(404);
+      69 |
+      70 |     expect(res.body.message).toBe("Product not found");
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:67:31)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as get] (node_modules/supertest/index.js:40:18)
+      at Object.get (tests/product.test.js:67:8)
+
+  ● Goods (product detail) integration › GET /api/goods supports search, category filter, and limit
+
+    listen EPERM: operation not permitted 0.0.0.0
+
+      65 |   test("GET /api/goods/:id returns 404 when product not found", async () => {
+      66 |     const res = await request(app)
+    > 67 |       .get("/api/goods/does_not_exist")
+         |        ^
+      68 |       .expect(404);
+      69 |
+      70 |     expect(res.body.message).toBe("Product not found");
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:63:35)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as get] (node_modules/supertest/index.js:40:18)
+      at Object.get (tests/product.test.js:67:8)
+
+  ● Goods (product detail) integration › GET /api/goods/:id/recommendations excludes current item and prioritizes same category
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.goods.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/product.test.js:149:24
+
+      146 
+      147 test("GET /api/goods/:id/recommendations excludes current item and prioritizes same category", async () => {
+      148   // Current item (Electronics)
+    → 149   await prisma.goods.create(
+    The column `quantity` does not exist in the current database.
+
+      147 |   test("GET /api/goods/:id/recommendations excludes current item and prioritizes same category", async () => {
+      148 |     // Current item (Electronics)
+    > 149 |     await prisma.goods.create({
+          |     ^
+      150 |       data: {
+      151 |         id: "g_cur",
+      152 |         title: "Current Item",
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/product.test.js:149:5)
+
+  ● Goods (product detail) integration › GET /api/categories returns unique sorted categories
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.goods.createMany()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/product.test.js:250:24
+
+      247 });
+      248 
+      249 test("GET /api/categories returns unique sorted categories", async () => {
+    → 250   await prisma.goods.createMany(
+    The column `quantity` does not exist in the current database.
+
+      248 |
+      249 |   test("GET /api/categories returns unique sorted categories", async () => {
+    > 250 |     await prisma.goods.createMany({
+          |     ^
+      251 |       data: [
+      252 |         {
+      253 |           id: "g1",
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/product.test.js:250:5)
+
+  ● Goods (product detail) integration › POST /api/goods creates a listing (requires role header) and returns parsed images
+
+    TypeError: Cannot read properties of null (reading 'port')
+
+      302 |     // Missing role -> 403
+      303 |     await request(app)
+    > 304 |       .post("/api/goods")
+          |        ^
+      305 |       .send({
+      306 |         title: "X",
+      307 |         price: 10,
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:67:31)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/product.test.js:304:8)
+
+  ● Goods (product detail) integration › POST /api/goods validates required fields
+
+    listen EPERM: operation not permitted 0.0.0.0
+
+      302 |     // Missing role -> 403
+      303 |     await request(app)
+    > 304 |       .post("/api/goods")
+          |        ^
+      305 |       .send({
+      306 |         title: "X",
+      307 |         price: 10,
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:63:35)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/product.test.js:304:8)
+
+  ● Goods (product detail) integration › POST /api/goods falls back to default seller, location, and empty images
+
+    TypeError: Cannot read properties of null (reading 'port')
+
+      353 |   test("POST /api/goods falls back to default seller, location, and empty images", async () => {
+      354 |     const res = await request(app)
+    > 355 |       .post("/api/goods")
+          |        ^
+      356 |       .set("x-user-role", "user")
+      357 |       .send({
+      358 |         title: "Desk Lamp",
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:67:31)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/product.test.js:355:8)
+
+
+  ● Test suite failed to run
+
+    listen EPERM: operation not permitted 0.0.0.0
+
+      353 |   test("POST /api/goods falls back to default seller, location, and empty images", async () => {
+      354 |     const res = await request(app)
+    > 355 |       .post("/api/goods")
+          |        ^
+      356 |       .set("x-user-role", "user")
+      357 |       .send({
+      358 |         title: "Desk Lamp",
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:63:35)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/product.test.js:355:8)
+
+FAIL tests/auth.integration.test.js
+  ● Auth integration › register -> login blocked -> verify -> login success
+
+    TypeError: Cannot read properties of null (reading 'port')
+
+      34 |     // register
+      35 |     const reg = await request(app)
+    > 36 |       .post("/api/auth/register")
+         |        ^
+      37 |       .send({ name, email, password })
+      38 |       .expect(201);
+      39 |
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:67:31)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/auth.integration.test.js:36:8)
+
+  ● Auth integration › resend-verification updates token
+
+    listen EPERM: operation not permitted 0.0.0.0
+
+      34 |     // register
+      35 |     const reg = await request(app)
+    > 36 |       .post("/api/auth/register")
+         |        ^
+      37 |       .send({ name, email, password })
+      38 |       .expect(201);
+      39 |
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:63:35)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/auth.integration.test.js:36:8)
+
+FAIL tests/chat.test.js
+  ● Chat integration › rejects chat endpoints when unauthenticated
+
+    TypeError: Cannot read properties of null (reading 'port')
+
+      60 |   test("rejects chat endpoints when unauthenticated", async () => {
+      61 |     const res = await request(app)
+    > 62 |       .get("/api/chat/conversations")
+         |        ^
+      63 |       .expect(401);
+      64 |
+      65 |     expect(res.body.message).toBe("Unauthorized");
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:67:31)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as get] (node_modules/supertest/index.js:40:18)
+      at Object.get (tests/chat.test.js:62:8)
+
+  ● Chat integration › POST /api/chat/conversations creates conversation and is idempotent for same participants/context
+
+    listen EPERM: operation not permitted 0.0.0.0
+
+      60 |   test("rejects chat endpoints when unauthenticated", async () => {
+      61 |     const res = await request(app)
+    > 62 |       .get("/api/chat/conversations")
+         |        ^
+      63 |       .expect(401);
+      64 |
+      65 |     expect(res.body.message).toBe("Unauthorized");
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:63:35)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as get] (node_modules/supertest/index.js:40:18)
+      at Object.get (tests/chat.test.js:62:8)
+
+  ● Chat integration › POST /api/chat/messages sends text and GET /api/chat/messages returns replay-ordered items
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/chat.test.js:33:22
+
+      30   email,
+      31   role = "user"
+      32 }) {
+    → 33   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      109 |
+      110 |   test("POST /api/chat/messages sends text and GET /api/chat/messages returns replay-ordered items", async () => {
+    > 111 |     const alice = await createUser({
+          |                   ^
+      112 |       id: "u_chat_3",
+      113 |       name: "Alice",
+      114 |       email: "alice_send@example.com"
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/chat.test.js:111:19)
+
+  ● Chat integration › POST /api/chat/messages rejects non-participant sender
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/chat.test.js:33:22
+
+      30   email,
+      31   role = "user"
+      32 }) {
+    → 33   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      165 |
+      166 |   test("POST /api/chat/messages rejects non-participant sender", async () => {
+    > 167 |     const alice = await createUser({
+          |                   ^
+      168 |       id: "u_chat_5",
+      169 |       name: "Alice",
+      170 |       email: "alice_no_participant@example.com"
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/chat.test.js:167:19)
+
+  ● Chat integration › GET /api/chat/conversations includes unreadCount and mark-read resets it
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/chat.test.js:33:22
+
+      30   email,
+      31   role = "user"
+      32 }) {
+    → 33   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      203 |
+      204 |   test("GET /api/chat/conversations includes unreadCount and mark-read resets it", async () => {
+    > 205 |     const alice = await createUser({
+          |                   ^
+      206 |       id: "u_chat_8",
+      207 |       name: "Alice",
+      208 |       email: "alice_unread@example.com"
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/chat.test.js:205:19)
+
+  ● Chat integration › POST /api/chat/messages/:id/withdraw allows sender within window and rejects after expiry
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/chat.test.js:33:22
+
+      30   email,
+      31   role = "user"
+      32 }) {
+    → 33   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      256 |
+      257 |   test("POST /api/chat/messages/:id/withdraw allows sender within window and rejects after expiry", async () => {
+    > 258 |     const alice = await createUser({
+          |                   ^
+      259 |       id: "u_chat_10",
+      260 |       name: "Alice",
+      261 |       email: "alice_withdraw@example.com"
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/chat.test.js:258:19)
+
+FAIL tests/draft.test.js
+  ● Draft listing integration › POST /api/drafts creates a draft and returns parsed image list
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/draft.test.js:22:22
+
+      19   email,
+      20   role = "user"
+      21 }) {
+    → 22   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      48 |
+      49 |   test("POST /api/drafts creates a draft and returns parsed image list", async () => {
+    > 50 |     await createUser({ id: "u_draft_1", email: "draft1@example.com" });
+         |     ^
+      51 |
+      52 |     const res = await request(app)
+      53 |       .post("/api/drafts")
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/draft.test.js:50:5)
+
+  ● Draft listing integration › POST /api/drafts updates an existing draft for the same user
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/draft.test.js:22:22
+
+      19   email,
+      20   role = "user"
+      21 }) {
+    → 22   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      77 |
+      78 |   test("POST /api/drafts updates an existing draft for the same user", async () => {
+    > 79 |     await createUser({ id: "u_draft_2", email: "draft2@example.com" });
+         |     ^
+      80 |
+      81 |     const existingDraft = await prisma.draft.create({
+      82 |       data: {
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/draft.test.js:79:5)
+
+  ● Draft listing integration › GET /api/drafts returns only current user's drafts and latest updated first
+
+    PrismaClientKnownRequestError: 
+    Invalid `prisma.user.create()` invocation in
+    /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/backend/tests/draft.test.js:22:22
+
+      19   email,
+      20   role = "user"
+      21 }) {
+    → 22   return prisma.user.create(
+    The column `address` does not exist in the current database.
+
+      120 |
+      121 |   test("GET /api/drafts returns only current user's drafts and latest updated first", async () => {
+    > 122 |     await createUser({ id: "u_draft_3", email: "draft3@example.com" });
+          |     ^
+      123 |     await createUser({ id: "u_draft_4", email: "draft4@example.com" });
+      124 |
+      125 |     const first = await prisma.draft.create({
+
+      at ei.handleRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:228:13)
+      at ei.handleAndLogRequestError (node_modules/@prisma/client/src/runtime/RequestHandler.ts:174:12)
+      at ei.request (node_modules/@prisma/client/src/runtime/RequestHandler.ts:143:12)
+      at a (node_modules/@prisma/client/src/runtime/getPrismaClient.ts:833:24)
+      at Object.<anonymous> (tests/draft.test.js:122:5)
+
+  ● Draft listing integration › POST /api/drafts validates missing user id and empty payload
+
+    TypeError: Cannot read properties of null (reading 'port')
+
+      178 |   test("POST /api/drafts validates missing user id and empty payload", async () => {
+      179 |     await request(app)
+    > 180 |       .post("/api/drafts")
+          |        ^
+      181 |       .set("x-user-role", "user")
+      182 |       .send({ title: "No user id" })
+      183 |       .expect(400);
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:67:31)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/draft.test.js:180:8)
+
+  ● Draft listing integration › DELETE /api/drafts/:id deletes owner draft and rejects non-owner
+
+    listen EPERM: operation not permitted 0.0.0.0
+
+      178 |   test("POST /api/drafts validates missing user id and empty payload", async () => {
+      179 |     await request(app)
+    > 180 |       .post("/api/drafts")
+          |        ^
+      181 |       .set("x-user-role", "user")
+      182 |       .send({ title: "No user id" })
+      183 |       .expect(400);
+
+      at Test.serverAddress (node_modules/supertest/lib/test.js:63:35)
+      at new Test (node_modules/supertest/lib/test.js:49:14)
+      at Object.obj.<computed> [as post] (node_modules/supertest/index.js:40:18)
+      at Object.post (tests/draft.test.js:180:8)
+
+Test Suites: 4 failed, 4 total
+Tests:       21 failed, 21 total
+Snapshots:   0 total
+Time:        1.792 s, estimated 34 s
+Ran all test suites.

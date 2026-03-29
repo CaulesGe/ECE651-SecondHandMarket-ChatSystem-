@@ -1,0 +1,1848 @@
+
+> test:frontend
+> npm --prefix client run test:run
+
+
+> client@0.0.0 test:run
+> vitest run
+
+
+ RUN  v4.0.18 /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client
+
+stderr | src/pages/__tests__/ProfilePage.test.jsx > ProfilePage drafts tab > opens the drafts tab from navigation state and continues editing a selected draft
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/ProductPage.test.jsx > ProductPage > shows 'Product not found' when api.getGood fails
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+Error loading product: Error: Not found
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/__tests__/ProductPage.test.jsx:118:39
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:145:11
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:915:26
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1243:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1209:10)
+    at file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1653:37
+    at Traces.$ (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/vitest/dist/chunks/traces.CCmnQaNT.js:142:27)
+    at trace (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/vitest/dist/chunks/test.B8ej_ZHS.js:239:21)
+    at runTest (file:///Users/shuqizhang/Desktop/grad%20waterloo/2026%20winter/ECE%20651/ECE651-G11/client/node_modules/@vitest/runner/dist/index.js:1653:12)
+
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > publishes a product by calling api.createGood
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26808:9
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > publishes a product by calling api.createGood
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26808:9
+
+stderr | src/pages/__tests__/LoginPage.test.jsx > LoginPage > shows validation message when fields empty
+Warning: Invalid DOM property `class`. Did you mean `className`?
+    at button
+    at div
+    at div
+    at form
+    at section
+    at LoginPage (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/LoginPage.jsx:16:57)
+    at Router (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/RegisterPage.test.jsx > RegisterPage > validates required fields
+Warning: Invalid DOM property `class`. Did you mean `className`?
+    at button
+    at div
+    at div
+    at form
+    at section
+    at RegisterPage (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/RegisterPage.jsx:16:57)
+    at Router (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/pages/__tests__/ProfilePage.test.jsx (2 tests) 509ms
+     ✓ opens the drafts tab from navigation state and continues editing a selected draft  400ms
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > saves current listing input as draft by calling api.saveDraft
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at commitRootImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26974:5)
+
+stderr | src/pages/__tests__/HomePage.test.jsx > HomePage listing flow > saves current listing input as draft by calling api.saveDraft
+Error loading recommendations: TypeError: __vite_ssr_import_10__.api.getPersonalRecommendations is not a function
+    at loadRecommendations (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:135:33)
+    at /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/src/pages/HomePage.jsx:146:5
+    at commitHookEffectListMount (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27078:3)
+    at flushPassiveEffects (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:27023:14)
+    at commitRootImpl (/Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/client/node_modules/react-dom/cjs/react-dom.development.js:26974:5)
+
+ ✓ src/pages/__tests__/RegisterPage.test.jsx (2 tests) 762ms
+     ✓ validates required fields  436ms
+     ✓ calls api.register with inputs  325ms
+ ❯ test/ChatPageTest/chatpage.e2e.spec.js (0 test)
+ ✓ src/pages/__tests__/LoginPage.test.jsx (3 tests) 845ms
+     ✓ shows validation message when fields empty  335ms
+     ✓ shows resend button when EMAIL_NOT_VERIFIED  315ms
+ ✓ src/pages/__tests__/HomePage.test.jsx (2 tests) 813ms
+     ✓ publishes a product by calling api.createGood  664ms
+ ❯ src/pages/__tests__/ProductPage.test.jsx (9 tests | 4 failed) 1545ms
+     ✓ shows 'Product not found' when api.getGood fails 161ms
+     × disables purchase buttons and shows login notice when not logged in 388ms
+     × adds item to cart and shows feedback when clicking Add to Cart (logged in) 181ms
+     × Buy Now adds to cart if not already there and navigates to /payment 113ms
+     ✓ Message Seller shows error when seller linkage missing 48ms
+     ✓ Message Seller blocks starting a conversation with yourself 42ms
+     ✓ Message Seller calls createConversation and navigates to /chat after success  453ms
+     ✓ renders recommendations section when api returns items 54ms
+     × renders product details after loading 105ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/ChatPageTest/chatpage.e2e.spec.js [ test/ChatPageTest/chatpage.e2e.spec.js ]
+Error: Playwright Test did not expect test.describe() to be called here.
+Most common reasons include:
+- You are calling test.describe() in a configuration file.
+- You are calling test.describe() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+ ❯ TestTypeImpl._currentSuite node_modules/playwright/lib/common/testType.js:75:13
+ ❯ TestTypeImpl._describe node_modules/playwright/lib/common/testType.js:115:24
+ ❯ Function.describe node_modules/playwright/lib/transform/transform.js:282:12
+ ❯ test/ChatPageTest/chatpage.e2e.spec.js:8:6
+      6| } from './chatPage.mocks';
+      7| 
+      8| test.describe('ChatPage E2E (mocked)', () => {
+       |      ^
+      9|   test('redirects unauthenticated users from /chat to /login', async (…
+     10|     await clearAuthenticatedUser(page);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__tests__/ProductPage.test.jsx > ProductPage > disables purchase buttons and shows login notice when not logged in
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name `/add to cart/i`
+
+Here are the accessible roles:
+
+  navigation:
+
+  Name "":
+  [36m<nav[39m
+    [33mclass[39m=[32m"breadcrumb"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  link:
+
+  Name "Home":
+  [36m<a[39m
+    [33mhref[39m=[32m"/"[39m
+  [36m/>[39m
+
+  Name "Electronics":
+  [36m<a[39m
+    [33mhref[39m=[32m"/?category=Electronics"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  main:
+
+  Name "":
+  [36m<main[39m
+    [33mclass[39m=[32m"product-page"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  img:
+
+  Name "Test Product":
+  [36m<img[39m
+    [33malt[39m=[32m"Test Product"[39m
+    [33mclass[39m=[32m"product-main-image"[39m
+    [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Test Product":
+  [36m<h1[39m
+    [33mclass[39m=[32m"product-title"[39m
+  [36m/>[39m
+
+  Name "Description":
+  [36m<h3 />[39m
+
+  --------------------------------------------------
+  strong:
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p />[39m
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"notice"[39m
+    [33mstyle[39m=[32m"margin-top: 16px;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Message Seller":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Save Item":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<nav[39m
+      [33mclass[39m=[32m"breadcrumb"[39m
+    [36m>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/"[39m
+      [36m>[39m
+        [0mHome[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/?category=Electronics"[39m
+      [36m>[39m
+        [0mElectronics[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<span>[39m
+        [0mTest Product[0m
+      [36m</span>[39m
+    [36m</nav>[39m
+    [36m<main[39m
+      [33mclass[39m=[32m"product-page"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"product-container"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-gallery"[39m
+        [36m>[39m
+          [36m<img[39m
+            [33malt[39m=[32m"Test Product"[39m
+            [33mclass[39m=[32m"product-main-image"[39m
+            [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+          [36m/>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-info"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-badges"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mElectronics[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mGood[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"product-title"[39m
+          [36m>[39m
+            [0mTest Product[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-price"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"currency"[39m
+            [36m>[39m
+              [0mCAD[0m
+            [36m</span>[39m
+            [0m [0m
+            [0m25[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"margin-top: 8px; font-weight: 600; color: rgb(185, 28, 28);"[39m
+          [36m>[39m
+            [0mSold out[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-meta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"7"[39m
+                  [33mr[39m=[32m"4"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mSeller:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mAlice[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"10"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mLocation:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mWaterloo[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"10"[39m
+                [36m/>[39m
+                [36m<polyline[39m
+                  [33mpoints[39m=[32m"12 6 12 12 16 14"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mListed:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0m12/31/2023[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-description"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mDescription[0m
+            [36m</h3>[39m
+            [36m<p>[39m
+              [0mGreat condition[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"18"[39m
+                  [33mx2[39m=[32m"6"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"6"[39m
+                  [33mx2[39m=[32m"18"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"16"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mry[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"22"[39m
+                  [33mx[39m=[32m"1"[39m
+                  [33my[39m=[32m"4"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"1"[39m
+                  [33mx2[39m=[32m"23"[39m
+                  [33my1[39m=[32m"10"[39m
+                  [33my2[39m=[32m"10"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mMessage Seller[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSave Item[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"notice"[39m
+            [33mstyle[39m=[32m"margin-top: 16px;"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+            [36m>[39m
+              [36m<circle[39m
+                [33mcx[39m=[32m"12"[39m
+                [33mcy[39m=[32m"12"[39m
+                [33mr[39m=[32m"10"[39m
+              [36m/>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"12"[39m
+                [33mx2[39m=[32m"12"[39m
+                [33my1[39m=[32m"8"[39m
+                [33my2[39m=[32m"12"[39m
+              [36m/>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"12"[39m
+                [33mx2[39m=[32m"12.01"[39m
+                [33my1[39m=[32m"16"[39m
+                [33my2[39m=[32m"16"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0mPlease login or register to purchase[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</main>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/pages/__tests__/ProductPage.test.jsx:136:19
+    134|     expect(await screen.findByRole("heading", { name: /test product/i …
+    135| 
+    136|     expect(screen.getByRole("button", { name: /add to cart/i })).toBeD…
+       |                   ^
+    137|     expect(screen.getByRole("button", { name: /buy now/i })).toBeDisab…
+    138|     expect(screen.getByRole("button", { name: /message seller/i })).to…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/pages/__tests__/ProductPage.test.jsx > ProductPage > adds item to cart and shows feedback when clicking Add to Cart (logged in)
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name `/add to cart/i`
+
+Here are the accessible roles:
+
+  navigation:
+
+  Name "":
+  [36m<nav[39m
+    [33mclass[39m=[32m"breadcrumb"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  link:
+
+  Name "Home":
+  [36m<a[39m
+    [33mhref[39m=[32m"/"[39m
+  [36m/>[39m
+
+  Name "Electronics":
+  [36m<a[39m
+    [33mhref[39m=[32m"/?category=Electronics"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  main:
+
+  Name "":
+  [36m<main[39m
+    [33mclass[39m=[32m"product-page"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  img:
+
+  Name "Test Product":
+  [36m<img[39m
+    [33malt[39m=[32m"Test Product"[39m
+    [33mclass[39m=[32m"product-main-image"[39m
+    [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Test Product":
+  [36m<h1[39m
+    [33mclass[39m=[32m"product-title"[39m
+  [36m/>[39m
+
+  Name "Description":
+  [36m<h3 />[39m
+
+  --------------------------------------------------
+  strong:
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p />[39m
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"notice"[39m
+    [33mstyle[39m=[32m"margin-top: 16px;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Message Seller":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+  [36m/>[39m
+
+  Name "Save Item":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<nav[39m
+      [33mclass[39m=[32m"breadcrumb"[39m
+    [36m>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/"[39m
+      [36m>[39m
+        [0mHome[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/?category=Electronics"[39m
+      [36m>[39m
+        [0mElectronics[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<span>[39m
+        [0mTest Product[0m
+      [36m</span>[39m
+    [36m</nav>[39m
+    [36m<main[39m
+      [33mclass[39m=[32m"product-page"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"product-container"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-gallery"[39m
+        [36m>[39m
+          [36m<img[39m
+            [33malt[39m=[32m"Test Product"[39m
+            [33mclass[39m=[32m"product-main-image"[39m
+            [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+          [36m/>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-info"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-badges"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mElectronics[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mGood[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"product-title"[39m
+          [36m>[39m
+            [0mTest Product[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-price"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"currency"[39m
+            [36m>[39m
+              [0mCAD[0m
+            [36m</span>[39m
+            [0m [0m
+            [0m25[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"margin-top: 8px; font-weight: 600; color: rgb(185, 28, 28);"[39m
+          [36m>[39m
+            [0mSold out[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-meta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"7"[39m
+                  [33mr[39m=[32m"4"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mSeller:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mAlice[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"10"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mLocation:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mWaterloo[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"10"[39m
+                [36m/>[39m
+                [36m<polyline[39m
+                  [33mpoints[39m=[32m"12 6 12 12 16 14"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mListed:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0m12/31/2023[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-description"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mDescription[0m
+            [36m</h3>[39m
+            [36m<p>[39m
+              [0mGreat condition[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"18"[39m
+                  [33mx2[39m=[32m"6"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"6"[39m
+                  [33mx2[39m=[32m"18"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"16"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mry[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"22"[39m
+                  [33mx[39m=[32m"1"[39m
+                  [33my[39m=[32m"4"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"1"[39m
+                  [33mx2[39m=[32m"23"[39m
+                  [33my1[39m=[32m"10"[39m
+                  [33my2[39m=[32m"10"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mMessage Seller[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSave Item[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"notice"[39m
+            [33mstyle[39m=[32m"margin-top: 16px;"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+            [36m>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"18"[39m
+                [33mx2[39m=[32m"6"[39m
+                [33my1[39m=[32m"6"[39m
+                [33my2[39m=[32m"18"[39m
+              [36m/>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"6"[39m
+                [33mx2[39m=[32m"18"[39m
+                [33my1[39m=[32m"6"[39m
+                [33my2[39m=[32m"18"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0mThis item is currently out of stock.[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</main>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/pages/__tests__/ProductPage.test.jsx:152:34
+    150|     expect(await screen.findByRole("heading", { name: /test product/i …
+    151| 
+    152|     await userEvent.click(screen.getByRole("button", { name: /add to c…
+       |                                  ^
+    153| 
+    154|     expect(addToCart).toHaveBeenCalledTimes(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/pages/__tests__/ProductPage.test.jsx > ProductPage > Buy Now adds to cart if not already there and navigates to /payment
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name `/buy now/i`
+
+Here are the accessible roles:
+
+  navigation:
+
+  Name "":
+  [36m<nav[39m
+    [33mclass[39m=[32m"breadcrumb"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  link:
+
+  Name "Home":
+  [36m<a[39m
+    [33mhref[39m=[32m"/"[39m
+  [36m/>[39m
+
+  Name "Electronics":
+  [36m<a[39m
+    [33mhref[39m=[32m"/?category=Electronics"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  main:
+
+  Name "":
+  [36m<main[39m
+    [33mclass[39m=[32m"product-page"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  img:
+
+  Name "Test Product":
+  [36m<img[39m
+    [33malt[39m=[32m"Test Product"[39m
+    [33mclass[39m=[32m"product-main-image"[39m
+    [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Test Product":
+  [36m<h1[39m
+    [33mclass[39m=[32m"product-title"[39m
+  [36m/>[39m
+
+  Name "Description":
+  [36m<h3 />[39m
+
+  --------------------------------------------------
+  strong:
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p />[39m
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"notice"[39m
+    [33mstyle[39m=[32m"margin-top: 16px;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Message Seller":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+  [36m/>[39m
+
+  Name "Save Item":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<nav[39m
+      [33mclass[39m=[32m"breadcrumb"[39m
+    [36m>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/"[39m
+      [36m>[39m
+        [0mHome[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/?category=Electronics"[39m
+      [36m>[39m
+        [0mElectronics[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<span>[39m
+        [0mTest Product[0m
+      [36m</span>[39m
+    [36m</nav>[39m
+    [36m<main[39m
+      [33mclass[39m=[32m"product-page"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"product-container"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-gallery"[39m
+        [36m>[39m
+          [36m<img[39m
+            [33malt[39m=[32m"Test Product"[39m
+            [33mclass[39m=[32m"product-main-image"[39m
+            [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+          [36m/>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-info"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-badges"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mElectronics[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mGood[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"product-title"[39m
+          [36m>[39m
+            [0mTest Product[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-price"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"currency"[39m
+            [36m>[39m
+              [0mCAD[0m
+            [36m</span>[39m
+            [0m [0m
+            [0m25[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"margin-top: 8px; font-weight: 600; color: rgb(185, 28, 28);"[39m
+          [36m>[39m
+            [0mSold out[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-meta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"7"[39m
+                  [33mr[39m=[32m"4"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mSeller:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mAlice[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"10"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mLocation:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mWaterloo[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"10"[39m
+                [36m/>[39m
+                [36m<polyline[39m
+                  [33mpoints[39m=[32m"12 6 12 12 16 14"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mListed:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0m12/31/2023[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-description"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mDescription[0m
+            [36m</h3>[39m
+            [36m<p>[39m
+              [0mGreat condition[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"18"[39m
+                  [33mx2[39m=[32m"6"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"6"[39m
+                  [33mx2[39m=[32m"18"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"16"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mry[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"22"[39m
+                  [33mx[39m=[32m"1"[39m
+                  [33my[39m=[32m"4"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"1"[39m
+                  [33mx2[39m=[32m"23"[39m
+                  [33my1[39m=[32m"10"[39m
+                  [33my2[39m=[32m"10"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mMessage Seller[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSave Item[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"notice"[39m
+            [33mstyle[39m=[32m"margin-top: 16px;"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+            [36m>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"18"[39m
+                [33mx2[39m=[32m"6"[39m
+                [33my1[39m=[32m"6"[39m
+                [33my2[39m=[32m"18"[39m
+              [36m/>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"6"[39m
+                [33mx2[39m=[32m"18"[39m
+                [33my1[39m=[32m"6"[39m
+                [33my2[39m=[32m"18"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0mThis item is currently out of stock.[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</main>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/pages/__tests__/ProductPage.test.jsx:178:34
+    176|     expect(await screen.findByRole("heading", { name: /test product/i …
+    177| 
+    178|     await userEvent.click(screen.getByRole("button", { name: /buy now/…
+       |                                  ^
+    179| 
+    180|     expect(addToCart).toHaveBeenCalledTimes(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/pages/__tests__/ProductPage.test.jsx > ProductPage > renders product details after loading
+TestingLibraryElementError: Unable to find an accessible element with the role "button" and name `/add to cart/i`
+
+Here are the accessible roles:
+
+  navigation:
+
+  Name "":
+  [36m<nav[39m
+    [33mclass[39m=[32m"breadcrumb"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  link:
+
+  Name "Home":
+  [36m<a[39m
+    [33mhref[39m=[32m"/"[39m
+  [36m/>[39m
+
+  Name "Electronics":
+  [36m<a[39m
+    [33mhref[39m=[32m"/?category=Electronics"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  main:
+
+  Name "":
+  [36m<main[39m
+    [33mclass[39m=[32m"product-page"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  img:
+
+  Name "Test Product":
+  [36m<img[39m
+    [33malt[39m=[32m"Test Product"[39m
+    [33mclass[39m=[32m"product-main-image"[39m
+    [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Test Product":
+  [36m<h1[39m
+    [33mclass[39m=[32m"product-title"[39m
+  [36m/>[39m
+
+  Name "Description":
+  [36m<h3 />[39m
+
+  --------------------------------------------------
+  strong:
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p />[39m
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"notice"[39m
+    [33mstyle[39m=[32m"margin-top: 16px;"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Sold Out":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Message Seller":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+  [36m/>[39m
+
+  Name "Save Item":
+  [36m<button[39m
+    [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<nav[39m
+      [33mclass[39m=[32m"breadcrumb"[39m
+    [36m>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/"[39m
+      [36m>[39m
+        [0mHome[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<a[39m
+        [33mhref[39m=[32m"/?category=Electronics"[39m
+      [36m>[39m
+        [0mElectronics[0m
+      [36m</a>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"separator"[39m
+      [36m>[39m
+        [0m/[0m
+      [36m</span>[39m
+      [36m<span>[39m
+        [0mTest Product[0m
+      [36m</span>[39m
+    [36m</nav>[39m
+    [36m<main[39m
+      [33mclass[39m=[32m"product-page"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"product-container"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-gallery"[39m
+        [36m>[39m
+          [36m<img[39m
+            [33malt[39m=[32m"Test Product"[39m
+            [33mclass[39m=[32m"product-main-image"[39m
+            [33msrc[39m=[32m"https://picsum.photos/seed/123/800/800"[39m
+          [36m/>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"product-info"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-badges"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mElectronics[0m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"badge badge-primary"[39m
+            [36m>[39m
+              [0mGood[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<h1[39m
+            [33mclass[39m=[32m"product-title"[39m
+          [36m>[39m
+            [0mTest Product[0m
+          [36m</h1>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-price"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"currency"[39m
+            [36m>[39m
+              [0mCAD[0m
+            [36m</span>[39m
+            [0m [0m
+            [0m25[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mstyle[39m=[32m"margin-top: 8px; font-weight: 600; color: rgb(185, 28, 28);"[39m
+          [36m>[39m
+            [0mSold out[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-meta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"7"[39m
+                  [33mr[39m=[32m"4"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mSeller:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mAlice[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"10"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mLocation:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0mWaterloo[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"product-meta-item"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [36m>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"10"[39m
+                [36m/>[39m
+                [36m<polyline[39m
+                  [33mpoints[39m=[32m"12 6 12 12 16 14"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mListed:[0m
+              [36m</span>[39m
+              [36m<strong>[39m
+                [0m12/31/2023[0m
+              [36m</strong>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-description"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mDescription[0m
+            [36m</h3>[39m
+            [36m<p>[39m
+              [0mGreat condition[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"product-actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-primary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"18"[39m
+                  [33mx2[39m=[32m"6"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"6"[39m
+                  [33mx2[39m=[32m"18"[39m
+                  [33my1[39m=[32m"6"[39m
+                  [33my2[39m=[32m"18"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"16"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mry[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"22"[39m
+                  [33mx[39m=[32m"1"[39m
+                  [33my[39m=[32m"4"[39m
+                [36m/>[39m
+                [36m<line[39m
+                  [33mx1[39m=[32m"1"[39m
+                  [33mx2[39m=[32m"23"[39m
+                  [33my1[39m=[32m"10"[39m
+                  [33my2[39m=[32m"10"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSold Out[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mMessage Seller[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn btn-lg btn-secondary"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"20"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21s-6.716-4.35-9.193-8.176C.662 9.53 2.206 5.25 6.06 4.24c2.047-.537 4.194.12 5.94 1.84 1.746-1.72 3.893-2.377 5.94-1.84 3.854 1.01 5.398 5.29 3.253 8.584C18.716 16.65 12 21 12 21z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [0mSave Item[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"notice"[39m
+            [33mstyle[39m=[32m"margin-top: 16px;"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+            [36m>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"18"[39m
+                [33mx2[39m=[32m"6"[39m
+                [33my1[39m=[32m"6"[39m
+                [33my2[39m=[32m"18"[39m
+              [36m/>[39m
+              [36m<line[39m
+                [33mx1[39m=[32m"6"[39m
+                [33mx2[39m=[32m"18"[39m
+                [33my1[39m=[32m"6"[39m
+                [33my2[39m=[32m"18"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [0mThis item is currently out of stock.[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</main>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/pages/__tests__/ProductPage.test.jsx:275:19
+    273| 
+    274|     // Should show action buttons
+    275|     expect(screen.getByRole("button", { name: /add to cart/i })).toBeI…
+       |                   ^
+    276|     expect(screen.getByRole("button", { name: /buy now/i })).toBeInThe…
+    277|     expect(screen.getByRole("button", { name: /message seller/i })).to…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed | 4 passed (6)
+      Tests  4 failed | 14 passed (18)
+   Start at  17:46:41
+   Duration  3.23s (transform 1.17s, setup 479ms, import 2.75s, tests 4.47s, environment 5.01s)
+

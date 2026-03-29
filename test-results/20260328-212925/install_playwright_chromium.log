@@ -1,0 +1,40 @@
+Downloading Chrome for Testing 145.0.7632.6 (playwright chromium v1208)[2m from https://cdn.playwright.dev/builds/cft/145.0.7632.6/mac-arm64/chrome-mac-arm64.zip[22m
+|                                                                                |   0% of 162.3 MiB
+|■■■■■■■■                                                                        |  10% of 162.3 MiB
+|■■■■■■■■■■■■■■■■                                                                |  20% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 162.3 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 162.3 MiB
+Chrome for Testing 145.0.7632.6 (playwright chromium v1208) downloaded to /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/.cache/ms-playwright/chromium-1208
+You are using a frozen ffmpeg browser which does not receive updates anymore on mac12-arm64. Please update to the latest version of your operating system to test up-to-date browsers.
+Downloading FFmpeg (playwright ffmpeg v1010)[2m from https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1010/ffmpeg-mac-arm64.zip[22m
+|                                                                                |   1% of 1.1 MiB
+|■■■■■■■■                                                                        |  10% of 1.1 MiB
+|■■■■■■■■■■■■■■■■                                                                |  20% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  41% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  61% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  81% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 1.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 1.1 MiB
+FFmpeg (playwright ffmpeg v1010) downloaded to /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/.cache/ms-playwright/ffmpeg_mac12_arm64_special-1010
+Downloading Chrome Headless Shell 145.0.7632.6 (playwright chromium-headless-shell v1208)[2m from https://cdn.playwright.dev/builds/cft/145.0.7632.6/mac-arm64/chrome-headless-shell-mac-arm64.zip[22m
+|                                                                                |   0% of 91.1 MiB
+|■■■■■■■■                                                                        |  10% of 91.1 MiB
+|■■■■■■■■■■■■■■■■                                                                |  20% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 91.1 MiB
+|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 91.1 MiB
+Chrome Headless Shell 145.0.7632.6 (playwright chromium-headless-shell v1208) downloaded to /Users/shuqizhang/Desktop/grad waterloo/2026 winter/ECE 651/ECE651-G11/.cache/ms-playwright/chromium_headless_shell-1208

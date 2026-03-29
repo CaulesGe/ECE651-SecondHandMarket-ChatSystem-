@@ -1,0 +1,2 @@
+Failed to install browsers
+Error: EPERM: operation not permitted, mkdir '/Users/shuqizhang/Library/Caches/ms-playwright'
