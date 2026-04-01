@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useNavigate } from 'react-router-dom';
+import { canWithdrawMessage } from '../helpers/ChatHelpers';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-
-const MESSAGE_PAGE_SIZE = 100;
-const TYPING_REFRESH_INTERVAL_MS = 2500;
-const PRESENCE_REFRESH_INTERVAL_MS = 15000;
+import ChatComposer from '../components/chat/ChatComposer';
+import ChatConversationList from '../components/chat/ChatConversationList';
+import ChatMessageList from '../components/chat/ChatMessageList';
+import ChatThreadHeader from '../components/chat/ChatThreadHeader';
+import ChatWithdrawMenu from '../components/chat/ChatWithdrawMenu';
+import useChatMediaPipeline from '../hooks/chat/useChatMediaPipeline';
+import useChatPresenceTyping from '../hooks/chat/useChatPresenceTyping';
+import useChatThreadController from '../hooks/chat/useChatThreadController';
 
 export default function ChatPage() {
   const { user, isLoggedIn } = useAuth();
@@ -34,27 +39,16 @@ export default function ChatPage() {
   const [composerError, setComposerError] = useState('');
   const [dragOverComposer, setDragOverComposer] = useState(false);
   const [withdrawContextMenu, setWithdrawContextMenu] = useState(null);
-  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
-  const [hasMoreOlderByConversation, setHasMoreOlderByConversation] = useState({});
   
-  // refs for the file input, media upload in flight, queued media upload, and failed media keys
+  // refs for the file input and queued media uploads.
   const fileInputRef = useRef(null);
   const mediaUploadInFlightRef = useRef(false);
   const queuedMediaUploadRef = useRef([]);
-  const failedMediaKeysRef = useRef(new Set());
-  const [signedMediaUrls, setSignedMediaUrls] = useState({}); // track which media download urls are signed
-  const [visibleVideoMessageIds, setVisibleVideoMessageIds] = useState({}); // track which video messages are in viewport
-  const videoVisibilityObserverRef = useRef(null); // observer for video messages in viewport
-  const videoContainerByMessageIdRef = useRef(new Map()); // track video container elements by message id
-  const videoNodeByMessageIdRef = useRef(new Map()); // track HTMLVideoElement nodes by message id
   // state for pending files
   const [pendingFiles, setPendingFiles] = useState([]);
   const pendingFilesRef = useRef([]);
   // ref for the chat messages container
   const chatMessagesContainerRef = useRef(null);
-  const typingIdleTimeoutRef = useRef(null);
-  const activeTypingConversationIdRef = useRef(null);
-  const typingRefreshIntervalRef = useRef(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -82,31 +76,8 @@ export default function ChatPage() {
     }
   }, [conversations, selectedChat]);
 
-  // Load messages when user switches conversation and mark latest as read.
-  useEffect(() => {
-    if (!selectedChat) return;
-    setLoadingOlderMessages(false);
-    loadMessages(selectedChat, { limit: MESSAGE_PAGE_SIZE }).then((items) => {
-      setHasMoreOlderByConversation((prev) => ({
-        ...prev,
-        [selectedChat]: items.length >= MESSAGE_PAGE_SIZE
-      }));
-      const latest = items[items.length - 1];
-      markAsRead(selectedChat, latest?.id || null).catch(() => {});
-      // Ensure selected conversation opens at newest message.
-      requestAnimationFrame(() => scrollToBottom('auto'));
-    }).catch(() => {});
-  }, [selectedChat, loadMessages, markAsRead]);
-
-  if (!isLoggedIn) {
-    return null;
-  }
-
   const currentConversation = conversations.find((t) => t.id === selectedChat) || null;
   const currentMessages = currentConversation ? getMessagesForConversation(currentConversation.id) : [];
-  const hasMoreOlderMessages = currentConversation
-    ? (hasMoreOlderByConversation[currentConversation.id] ?? true)
-    : false;
   const canSendMessage = Boolean(currentConversation);
   const lastMessageId = currentMessages[currentMessages.length - 1]?.id;
   const currentOtherParticipantEntry = currentConversation?.participants?.find((participant) => participant.userId !== user?.id);
@@ -118,6 +89,37 @@ export default function ChatPage() {
       .filter((typingUserId) => typingUserId !== user?.id)
       .map((typingUserId) => currentConversation.participants?.find((participant) => participant.userId === typingUserId)?.user?.name || typingUserId)
     : [];
+  const { stopTyping } = useChatPresenceTyping({
+    canSendMessage,
+    draft,
+    requestConversationPresence,
+    selectedChat,
+    setTypingState,
+    socketConnected
+  });
+  const {
+    bindVideoContainerRef,
+    bindVideoNodeRef,
+    signedMediaUrls,
+    visibleVideoMessageIds
+  } = useChatMediaPipeline({
+    conversationId: currentConversation?.id,
+    currentMessages,
+    isLoggedIn,
+    signMediaDownload,
+    userId: user?.id
+  });
+  const {
+    handleMessagesScroll,
+    hasMoreOlderMessages,
+    loadingOlderMessages
+  } = useChatThreadController({
+    conversationId: currentConversation?.id,
+    currentMessages,
+    loadMessages,
+    markAsRead,
+    messagesContainerRef: chatMessagesContainerRef
+  });
 
   // scroll to the bottom of the chat messages container
   const scrollToBottom = (behavior = 'smooth') => {
@@ -130,82 +132,6 @@ export default function ChatPage() {
     // Only auto-scroll for the newest message to avoid jump when users interact with older media.
     if (!messageId || messageId !== lastMessageId) return;
     requestAnimationFrame(() => scrollToBottom('smooth'));
-  };
-
-  const handleMessagesScroll = async () => {
-    const container = chatMessagesContainerRef.current;
-    if (!container || !currentConversation || loadingOlderMessages || !hasMoreOlderMessages) return;
-    if (container.scrollTop > 40) return;
-
-    const oldestLoadedMessageId = currentMessages[0]?.id;
-    if (!oldestLoadedMessageId) return;
-
-    const previousScrollHeight = container.scrollHeight;
-    const previousScrollTop = container.scrollTop;
-    setLoadingOlderMessages(true);
-    try {
-      const olderItems = await loadMessages(currentConversation.id, {
-        beforeMessageId: oldestLoadedMessageId,
-        limit: MESSAGE_PAGE_SIZE
-      });
-      setHasMoreOlderByConversation((prev) => ({
-        ...prev,
-        [currentConversation.id]: olderItems.length >= MESSAGE_PAGE_SIZE
-      }));
-      requestAnimationFrame(() => {
-        const nextScrollHeight = container.scrollHeight;
-        container.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight);
-      });
-    } finally {
-      setLoadingOlderMessages(false);
-    }
-  };
-
-  const formatTimeHHMM = (dateLike) => {
-    const date = new Date(dateLike);
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('en-CA', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).format(date);
-  };
-
-  const formatListTime = (dateLike) => {
-    if (!dateLike) return '';
-    const date = new Date(dateLike);
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('en-CA', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).format(date);
-  };
-
-  const getMessagePreview = (message) => {
-    if (!message) return 'No messages yet';
-    if (message.isWithdrawn) return 'Message withdrawn';
-    if (message.type === 'image') return '[Image]';
-    if (message.type === 'video') return '[Video]';
-    return message.content || 'Message';
-  };
-
-  const clearTypingRefreshInterval = () => {
-    if (typingRefreshIntervalRef.current) {
-      clearInterval(typingRefreshIntervalRef.current);
-      typingRefreshIntervalRef.current = null;
-    }
-  };
-
-  const startTypingRefreshInterval = (conversationId) => {
-    clearTypingRefreshInterval();
-    if (!conversationId) return;
-    typingRefreshIntervalRef.current = setInterval(() => {
-      if (activeTypingConversationIdRef.current !== conversationId) return;
-      setTypingState(conversationId, true).catch(() => {});
-    }, TYPING_REFRESH_INTERVAL_MS);
   };
 
   const getSenderName = (message) => {
@@ -345,17 +271,7 @@ export default function ChatPage() {
     if (!text && filesToUpload.length === 0) return;
 
     setComposerError('');
-    // clear the active typing state for the conversation
-    if (activeTypingConversationIdRef.current) {
-      setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
-      activeTypingConversationIdRef.current = null;
-    }
-    clearTypingRefreshInterval();
-    // clear the timeout to clear the typing state for the conversation and user
-    if (typingIdleTimeoutRef.current) {
-      clearTimeout(typingIdleTimeoutRef.current);
-      typingIdleTimeoutRef.current = null;
-    }
+    stopTyping();
     const recipientId = currentConversation.participants?.find((p) => p.userId !== user?.id)?.userId;
 
     try {
@@ -391,43 +307,6 @@ export default function ChatPage() {
     }
   };
 
-  // get the media key from the message
-  const getMediaKey = (message) => message?.mediaObjectKey || message?.mediaUrl || null;
-
-  // bind the video container reference to the message id
-  const bindVideoContainerRef = (messageId) => (element) => {
-    // if the element is found, set the video container reference to the element
-    if (element) {
-      videoContainerByMessageIdRef.current.set(messageId, element);
-      if (videoVisibilityObserverRef.current) {
-        videoVisibilityObserverRef.current.observe(element);
-      }
-      return;
-    }
-    // if the element is not found, unobserve the previous element
-    const previousElement = videoContainerByMessageIdRef.current.get(messageId);
-    if (previousElement && videoVisibilityObserverRef.current) {
-      videoVisibilityObserverRef.current.unobserve(previousElement);
-    }
-    videoContainerByMessageIdRef.current.delete(messageId);
-  };
-
-  // bind the video node reference to the message id
-  const bindVideoNodeRef = (messageId) => (element) => {
-    if (element) {
-      videoNodeByMessageIdRef.current.set(messageId, element);
-      return;
-    }
-    videoNodeByMessageIdRef.current.delete(messageId);
-  };
-
-  const canWithdrawMessage = (message) => {
-    if (!message || message.senderId !== user?.id || message.isWithdrawn) return false;
-    const sentAt = new Date(message.createdAt).getTime();
-    if (!Number.isFinite(sentAt)) return false;
-    return Date.now() - sentAt <= 2 * 60 * 1000;
-  };
-
   const handleWithdrawMessage = async (message) => {
     if (!message?.id || !message?.conversationId) return;
     try {
@@ -442,7 +321,7 @@ export default function ChatPage() {
   };
 
   const handleMessageContextMenu = (e, message) => {
-    if (!canWithdrawMessage(message)) {
+    if (!canWithdrawMessage(message, user?.id)) {
       setWithdrawContextMenu(null);
       return;
     }
@@ -459,199 +338,6 @@ export default function ChatPage() {
     setWithdrawContextMenu(null);
     await handleWithdrawMessage(selectedMessage);
   };
-
-  useEffect(() => {
-    // Keep view anchored to newest message and mark active conversation as read.
-    scrollToBottom('auto');
-    if (!selectedChat || currentMessages.length === 0) return;
-    const latest = currentMessages[currentMessages.length - 1];
-    markAsRead(selectedChat, latest?.id || null).catch(() => {});
-  }, [selectedChat, lastMessageId]);
-
-  // request a presence/typing snapshot when selected chat or socket connectivity changes
-  useEffect(() => {
-    if (!selectedChat || !socketConnected) return;
-    requestConversationPresence(selectedChat).catch(() => {});
-  }, [selectedChat, socketConnected, requestConversationPresence]);
-
-  useEffect(() => {
-    if (!selectedChat || !socketConnected) return undefined;
-    // request a presence/typing snapshot when the user comes back to the page
-    const handleFocus = () => {
-      requestConversationPresence(selectedChat).catch(() => {});
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [selectedChat, socketConnected, requestConversationPresence]);
-
-  // refresh the presence and typing state for the conversation every 15 seconds
-  useEffect(() => {
-    if (!selectedChat || !socketConnected) return undefined;
-    const intervalId = setInterval(() => {
-      requestConversationPresence(selectedChat).catch(() => {});
-    }, PRESENCE_REFRESH_INTERVAL_MS);
-    return () => clearInterval(intervalId);
-  }, [selectedChat, socketConnected, requestConversationPresence]);
-
-  // set the typing state for the conversation and user when the user starts typing
-  useEffect(() => {
-    if (!canSendMessage || !selectedChat) return undefined;
-
-    const hasText = Boolean(draft.trim());
-    if (hasText) {
-      // if the active typing conversation id is not the selected chat
-      if (activeTypingConversationIdRef.current !== selectedChat) {
-        // clear the active typing state for the old conversation
-        if (activeTypingConversationIdRef.current) {
-          setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
-        }
-        // set the active typing conversation id to the selected chat
-        activeTypingConversationIdRef.current = selectedChat;
-        setTypingState(selectedChat, true).catch(() => {});
-        startTypingRefreshInterval(selectedChat);
-      } else if (!typingRefreshIntervalRef.current) {
-        startTypingRefreshInterval(selectedChat);
-      }
-      // set the timeout to clear the typing state for the conversation and user
-      if (typingIdleTimeoutRef.current) clearTimeout(typingIdleTimeoutRef.current);
-      typingIdleTimeoutRef.current = setTimeout(() => {
-        if (!activeTypingConversationIdRef.current) return;
-        setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
-        activeTypingConversationIdRef.current = null;
-        clearTypingRefreshInterval();
-      }, 1600);
-      return undefined;
-    }
-    // clear the active typing state for the conversation
-    if (activeTypingConversationIdRef.current) {
-      setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
-      activeTypingConversationIdRef.current = null;
-    }
-    clearTypingRefreshInterval();
-    if (typingIdleTimeoutRef.current) {
-      clearTimeout(typingIdleTimeoutRef.current);
-      typingIdleTimeoutRef.current = null;
-    }
-    return undefined;
-  }, [draft, selectedChat, canSendMessage, setTypingState]);
-
-  // clear the visible video message ids when the selected chat changes
-  useEffect(() => {
-    setVisibleVideoMessageIds({});
-    if (videoVisibilityObserverRef.current) {
-      videoVisibilityObserverRef.current.disconnect();
-      videoVisibilityObserverRef.current = null;
-    }
-    videoContainerByMessageIdRef.current.clear();
-    videoNodeByMessageIdRef.current.clear();
-  }, [selectedChat]);
-
-  // Pause and unload videos when they leave viewport to avoid resource spikes in long chats.
-  useEffect(() => {
-    currentMessages.forEach((message) => {
-      if (message.type !== 'video') return;
-      const element = videoNodeByMessageIdRef.current.get(message.id);
-      if (!element) return;
-      const mediaKey = getMediaKey(message);
-      const isVisible = Boolean(visibleVideoMessageIds[message.id]);
-      const shouldHaveSource = Boolean(isVisible && mediaKey && signedMediaUrls[mediaKey]);
-      // if the video is not in viewport or the media download url is not signed, pause the video
-      if (!shouldHaveSource) {
-        try {
-          element.pause();
-        } catch {
-          // No-op; some browsers may throw if media isn't initialized.
-        }
-      }
-    });
-  }, [currentMessages, visibleVideoMessageIds, signedMediaUrls]);
-
-  
-  // sign the media download urls
-  useEffect(() => {
-    if (!isLoggedIn || !user?.id || currentMessages.length === 0) return;
-    const imageKeys = currentMessages
-      .filter((message) => message.type === 'image' && !message.isWithdrawn)
-      .map((message) => getMediaKey(message))
-      .filter(Boolean);
-    const visibleVideoKeys = currentMessages
-      .filter((message) => message.type === 'video' && !message.isWithdrawn && visibleVideoMessageIds[message.id])
-      .map((message) => getMediaKey(message))
-      .filter(Boolean);
-
-    const mediaObjectKeys = [...new Set([...imageKeys, ...visibleVideoKeys])];
-    const pendingKeys = mediaObjectKeys.filter(
-      (key) => !signedMediaUrls[key] && !failedMediaKeysRef.current.has(key)
-    );
-    if (pendingKeys.length === 0) return;
-
-    let cancelled = false;
-    // sign the media download urls
-    Promise.all(
-      pendingKeys.map(async (key) => {
-        try {
-          const data = await signMediaDownload(key);
-          return [key, data.downloadUrl];
-        } catch {
-          failedMediaKeysRef.current.add(key);
-          return [key, null];
-        }
-      })
-    ).then((entries) => {
-      if (cancelled) return;
-      // update the signed media urls
-      setSignedMediaUrls((prev) => {
-        const next = { ...prev };
-        entries.forEach(([key, url]) => {
-          if (url) next[key] = url;
-        });
-        return next;
-      });
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoggedIn, user?.id, currentMessages, visibleVideoMessageIds, signedMediaUrls, signMediaDownload]);
-
-  // track which video messages are in viewport
-  useEffect(() => {
-    if (!currentConversation || typeof window === 'undefined') return undefined;
-
-    const handleVisibility = (entries) => {
-      setVisibleVideoMessageIds((prev) => {
-        let changed = false;
-        const visibleVideoMessageIds = { ...prev };
-        entries.forEach((entry) => {
-          const messageId = entry.target.getAttribute('data-message-id');
-          if (!messageId) return;
-          // if the video is in viewport, set the visible video message id to true
-          const isVisible = entry.isIntersecting; // true if the video is in viewport, false if it is not
-          if (visibleVideoMessageIds[messageId] !== isVisible) { // if the visible video message id is not the same as the next value, set the visible video message id to the next value
-            visibleVideoMessageIds[messageId] = isVisible;
-            changed = true;
-          }
-        });
-        return changed ? visibleVideoMessageIds : prev;
-      });
-    };
-
-    // create a new intersection observer to track which video messages are in viewport
-    const observer = new IntersectionObserver(handleVisibility, {
-      root: null,
-      threshold: 0.2
-    });
-    videoVisibilityObserverRef.current = observer;
-    videoContainerByMessageIdRef.current.forEach((element) => observer.observe(element));
-
-    // disconnect the observer when the component unmounts
-    return () => {
-      observer.disconnect();
-      if (videoVisibilityObserverRef.current === observer) {
-        videoVisibilityObserverRef.current = null;
-      }
-    };
-  }, [currentConversation, currentMessages]);
 
   useEffect(() => {
     pendingFilesRef.current = pendingFiles;
@@ -679,309 +365,72 @@ export default function ChatPage() {
 
   // cleanup pending files when component unmounts
   useEffect(() => () => {
-    if (typingIdleTimeoutRef.current) {
-      clearTimeout(typingIdleTimeoutRef.current);
-      typingIdleTimeoutRef.current = null;
-    }
-    clearTypingRefreshInterval();
-    if (activeTypingConversationIdRef.current) {
-      setTypingState(activeTypingConversationIdRef.current, false).catch(() => {});
-      activeTypingConversationIdRef.current = null;
-    }
     pendingFilesRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-  }, [setTypingState]);
-  
+  }, []);
+
+  // Keep hook order stable even while redirecting logged-out users.
+  if (!isLoggedIn) {
+    return null;
+  }
+
   return (
     <>
       <Header />
       <div className="chat-page">
         <div className="chat-container">
-          {/* Left Sidebar - Message List */}
-          <aside className="chat-sidebar">
-            <h2 className="chat-sidebar-title">
-              Messages {socketConnected ? '' : '(offline)'}
-            </h2>
-            <div className="chat-list" data-testid="chat-list">
-              {loadingConversations ? (
-                <div className="chat-item-time">Loading conversations...</div>
-              ) : conversations.length === 0 ? (
-                <div className="chat-item-time">No conversations yet.</div>
-              ) : (
-                conversations.map((conversation) => {
-                  const otherParticipant = conversation.participants?.find(
-                    (p) => p.user?.id !== user?.id
-                  )?.user;
-                  const title = otherParticipant?.name || `Conversation ${conversation.id.slice(0, 6)}`;
-                  const lastMessage = conversation.lastMessage || null;
-                  return (
-                    <button
-                      key={conversation.id}
-                      data-testid={`chat-item-${conversation.id}`}
-                      className={`chat-item ${selectedChat === conversation.id ? 'active' : ''}`}
-                      onClick={() => setSelectedChat(conversation.id)}
-                    >
-                      <div className="chat-item-icon chat">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                        </svg>
-                      </div>
-                      <div className="chat-item-content">
-                        <div className="chat-item-title">{title}</div>
-                        <div className="chat-item-preview">{getMessagePreview(lastMessage)}</div>
-                        <div className="chat-item-time">{formatListTime(lastMessage?.createdAt || conversation.updatedAt)}</div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </aside>
+          <ChatConversationList
+            conversations={conversations}
+            currentUserId={user?.id}
+            loadingConversations={loadingConversations}
+            onSelectChat={setSelectedChat}
+            selectedChat={selectedChat}
+            socketConnected={socketConnected}
+          />
 
           {/* Right Pane - Message Details */}
           <main className="chat-main">
-            {/* Chat Header: Displays current conv title and action buttons */}
-            <div className="chat-header">
-              <h2 className="chat-header-title">
-                {currentConversation ? (currentOtherParticipant?.name || `Conversation ${currentConversation.id.slice(0, 6)}`) : 'Messages'}
-              </h2>
-              {currentConversation && currentOtherParticipant && (
-                <div className="chat-presence-status" aria-live="polite" data-testid="chat-presence-status">
-                  {typingUserNames.length > 0
-                    ? `${typingUserNames.join(', ')} ${typingUserNames.length > 1 ? 'are' : 'is'} typing...`
-                    : (isOtherParticipantOnline ? 'Online' : 'Offline')}
-                </div>
-              )}
-              {/* Action buttons for conv management (archive, mark as read, etc.) */}
-              <div className="chat-header-actions">
-                <button className="chat-header-btn" aria-label="Archive">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                  </svg>
-                </button>
-                <button className="chat-header-btn" aria-label="Mark as read">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-              </div>
-            </div>
+            <ChatThreadHeader
+              currentConversation={currentConversation}
+              currentOtherParticipant={currentOtherParticipant}
+              isOtherParticipantOnline={isOtherParticipantOnline}
+              typingUserNames={typingUserNames}
+            />
 
-            {/* Messages Container: Scrollable area displaying all messages in the conv */}
-            <div
-              ref={chatMessagesContainerRef}
-              className="chat-messages"
-              onScroll={handleMessagesScroll}
-              data-testid="chat-messages"
-            >
-              {loadingOlderMessages && (
-                <div className="chat-item-time">Loading older messages...</div>
-              )}
-              {!loadingOlderMessages && !hasMoreOlderMessages && currentMessages.length > 0 && (
-                <div className="chat-item-time">No older messages.</div>
-              )}
-              {/* Render each message in the current conv */}
-              {currentMessages.map((message, index) => {
-                const mediaKey = getMediaKey(message);
-                const mediaDownloadUrl = mediaKey ? signedMediaUrls[mediaKey] : null;
-                // check if the video is in viewport
-                const isVisibleVideo = Boolean(message.type === 'video' && visibleVideoMessageIds[message.id]);
-                const isWithdrawn = Boolean(message.isWithdrawn);
-                return (
-                <div
-                  key={message.id}
-                  data-testid={`message-bubble-${message.id}`}
-                  className="message-bubble"
-                  onContextMenu={(e) => handleMessageContextMenu(e, message)}
-                >
-                  {/* 
-                    Timestamp Display Logic:
-                    Show timestamp only if it's the first message OR 
-                    if the timestamp differs from the previous message.
-                    This prevents duplicate timestamps for messages sent at the same time.
-                  */}
-                  {index === 0 || currentMessages[index - 1].createdAt !== message.createdAt ? (
-                    <div className="message-timestamp">{formatTimeHHMM(message.createdAt)}</div>
-                  ) : null}
-                  
-                  {/* Message Content: Contains icon, title, description, and action link */}
-                  <div className={`message-description ${message.senderId === user?.id ? 'message-sender-self' : 'message-recipient'}`}>
-                    {getSenderName(message)}
-                  </div>
-                  <div className="message-content">
-                    {/* Optional icon displayed on the left side of the message (e.g., notification bell, money bag) */}
-                    {!isWithdrawn && message.type !== 'text' && (
-                      <div className="message-icon">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          {message.type === 'image' ? (
-                            <>
-                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                              <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                              <polyline points="21 15 16 10 5 21"></polyline>
-                            </>
-                          ) : (
-                            <>
-                              <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                            </>
-                          )}
-                        </svg>
-                      </div>
-                    )}
-                    
-                    {/* Message Text Container: Title, description, and action link */}
-                    <div className="message-text">
-                      {/* 
-                        Message Title: Supports markdown-style bold text (**text**)
-                        Converts **text** to <strong>text</strong> for rendering
-                        Note: Using dangerouslySetInnerHTML requires sanitization in production
-                      */}
-                      <div className="message-title">
-                        {isWithdrawn ? 'Message withdrawn' : (message.type === 'text' ? (message.content || '') : '')}
-                      </div>
-                      
-                      {/* Optional description text providing additional context */}
-                      {!isWithdrawn && message.type === 'image' && mediaDownloadUrl && (
-                        <img
-                          className="message-media message-media-image"
-                          src={mediaDownloadUrl}
-                          alt="Shared image"
-                          loading="lazy"
-                          onLoad={() => handleMediaRendered(message.id)}
-                        />
-                      )}
-                      {!isWithdrawn && message.type === 'video' && mediaDownloadUrl && (
-                        <div
-                          className="message-media-video-shell"
-                          data-message-id={message.id}
-                          ref={bindVideoContainerRef(message.id)}
-                        >
-                          <video
-                            className="message-media message-media-video"
-                            controls
-                            preload="none"
-                            src={isVisibleVideo ? mediaDownloadUrl : undefined}
-                            ref={bindVideoNodeRef(message.id)}
-                            onLoadedData={() => handleMediaRendered(message.id)}
-                          />
-                        </div>
-                      )}
-                      {!isWithdrawn && mediaKey && message.type === 'video' && !isVisibleVideo && (
-                        // if the video is not in viewport, show a placeholder
-                        <div
-                          className="message-description"
-                          data-message-id={message.id}
-                          ref={bindVideoContainerRef(message.id)}
-                        >
-                          Video will load when visible.
-                        </div>
-                      )}
-                      {!isWithdrawn && mediaKey && !mediaDownloadUrl && message.type !== 'video' && (
-                        <div className="message-description">Loading media...</div>
-                      )}
-                      {!isWithdrawn && mediaKey && message.type === 'video' && isVisibleVideo && !mediaDownloadUrl && (
-                        <div className="message-description">Loading media...</div>
-                      )}
-                      
-                      {/* Optional action link (e.g., "Go to redeem", "Activate now") */}
-                    </div>
-                  </div>
-                </div>
-              )})}
-            </div>
-            {withdrawContextMenu && (
-              <div
-                className="message-context-menu"
-                data-testid="message-context-menu"
-                style={{ top: `${withdrawContextMenu.y}px`, left: `${withdrawContextMenu.x}px` }}
-                onClick={(e) => e.stopPropagation()}
-                role="menu"
-              >
-                <button
-                  type="button"
-                  className="message-context-menu-item"
-                  data-testid="withdraw-action"
-                  onClick={handleWithdrawFromContextMenu}
-                >
-                  Withdraw
-                </button>
-              </div>
-            )}
+            <ChatMessageList
+              bindVideoContainerRef={bindVideoContainerRef}
+              bindVideoNodeRef={bindVideoNodeRef}
+              currentMessages={currentMessages}
+              getSenderName={getSenderName}
+              handleMediaRendered={handleMediaRendered}
+              hasMoreOlderMessages={hasMoreOlderMessages}
+              loadingOlderMessages={loadingOlderMessages}
+              messagesContainerRef={chatMessagesContainerRef}
+              onMessageContextMenu={handleMessageContextMenu}
+              onMessagesScroll={handleMessagesScroll}
+              signedMediaUrls={signedMediaUrls}
+              userId={user?.id}
+              visibleVideoMessageIds={visibleVideoMessageIds}
+            />
+            <ChatWithdrawMenu
+              onWithdraw={handleWithdrawFromContextMenu}
+              position={withdrawContextMenu}
+            />
 
-            {/* Composer Row: lets users type and send messages (enabled for chat convs only) */}
-            <form
-              className={`chat-composer ${dragOverComposer ? 'chat-composer-drag-over' : ''}`}
-              onSubmit={handleSend}
-              onDragOver={handleComposerDragOver}
-              onDragLeave={handleComposerDragLeave}
-              onDrop={handleComposerDrop}
-            >
-              <input
-                ref={fileInputRef}
-                className="chat-file-input"
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                onChange={handleAttachFile}
-                disabled={!canSendMessage}
-                aria-label="Attach image or video"
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm chat-attach-btn"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={!canSendMessage}
-              >
-                Attach
-              </button>
-              {pendingFiles.length > 0 && (
-                <div className="chat-file-preview-list">
-                  {pendingFiles.map((pending) => (
-                    <div key={pending.id} className="chat-file-preview-item" title={pending.file.name}>
-                      {pending.kind === 'image' ? (
-                        <img className="chat-file-preview-thumb" src={pending.previewUrl} alt={pending.file.name} />
-                      ) : (
-                        <video className="chat-file-preview-thumb" src={pending.previewUrl} preload="metadata" muted />
-                      )}
-                      <button
-                        type="button"
-                        className="chat-file-preview-remove"
-                        onClick={() => removePendingFileFromUploadQueue(pending.id)}
-                        aria-label="Remove attachment"
-                      >
-                        x
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <input
-                className="chat-input"
-                data-testid="chat-input"
-                type="text"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={canSendMessage ? 'Type a message...' : 'Select a conversation first'}
-                disabled={!canSendMessage}
-                aria-label="Message input"
-              />
-              <button
-                type="submit"
-                className="btn btn-primary btn-sm chat-send-btn"
-                data-testid="chat-send-btn"
-                disabled={!canSendMessage || (!draft.trim() && pendingFiles.length === 0)}
-                aria-label="Send message"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-                Send
-              </button>
-            </form>
-            {composerError ? <div className="chat-composer-error" data-testid="chat-composer-error">{composerError}</div> : null}
+            <ChatComposer
+              canSendMessage={canSendMessage}
+              composerError={composerError}
+              dragOverComposer={dragOverComposer}
+              draft={draft}
+              fileInputRef={fileInputRef}
+              onAttachFile={handleAttachFile}
+              onComposerDragLeave={handleComposerDragLeave}
+              onComposerDragOver={handleComposerDragOver}
+              onComposerDrop={handleComposerDrop}
+              onDraftChange={setDraft}
+              onRemovePendingFile={removePendingFileFromUploadQueue}
+              onSend={handleSend}
+              pendingFiles={pendingFiles}
+            />
           </main>
         </div>
       </div>

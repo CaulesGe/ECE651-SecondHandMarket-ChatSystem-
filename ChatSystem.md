@@ -62,6 +62,86 @@ Why compare against `lastReadMessageCreatedAt` (message sent time) instead of `r
 
 - It correctly counts messages sent after the last read message, even if user marked read later.
 
+## 0.3 Frontend architecture
+
+The frontend chat flow is intentionally layered so UI rendering, page orchestration, chat-side effects, and transport details stay separate.
+
+High-level responsibilities:
+
+1. `ChatPage.jsx` acts as the page coordinator.
+2. Presentational components under `client/src/components/chat/` render the sidebar, header, thread, composer, and context menu.
+3. Focused hooks under `client/src/hooks/chat/` manage one behavior cluster each:
+   - `useChatThreadController`: message hydration, read state, older-message pagination
+   - `useChatPresenceTyping`: presence refresh and typing lifecycle
+   - `useChatMediaPipeline`: signed media URLs, video visibility, lazy media loading
+4. `ChatContext.jsx` is the frontend chat boundary:
+   - owns chat state shared across the app
+   - exposes chat operations to pages/hooks
+   - hides direct `api.js` and socket usage from the UI layer
+5. `api.js` performs raw HTTP calls, while Socket.IO in `ChatContext` handles realtime events.
+
+Frontend data flow:
+
+```mermaid
+flowchart TD
+  ChatPage[ChatPage]
+
+  subgraph chatComponents [Chat UI Components]
+    ChatConversationList[ChatConversationList]
+    ChatThreadHeader[ChatThreadHeader]
+    ChatMessageList[ChatMessageList]
+    ChatMessageBubble[ChatMessageBubble]
+    ChatComposer[ChatComposer]
+    ChatWithdrawMenu[ChatWithdrawMenu]
+  end
+
+  subgraph chatHooks [Chat Behavior Hooks]
+    useChatThreadController[useChatThreadController]
+    useChatPresenceTyping[useChatPresenceTyping]
+    useChatMediaPipeline[useChatMediaPipeline]
+  end
+
+  chatHelpers[chatFormatting]
+  ChatContext[ChatContext]
+  ApiLayer[api.js]
+  SocketLayer[Socket.IO Client]
+  Backend[Backend API]
+  S3[AWS S3]
+
+  ChatPage --> ChatConversationList
+  ChatPage --> ChatThreadHeader
+  ChatPage --> ChatMessageList
+  ChatMessageList --> ChatMessageBubble
+  ChatPage --> ChatComposer
+  ChatPage --> ChatWithdrawMenu
+
+  ChatPage --> useChatThreadController
+  ChatPage --> useChatPresenceTyping
+  ChatPage --> useChatMediaPipeline
+
+  ChatConversationList --> chatHelpers
+  ChatMessageBubble --> chatHelpers
+  useChatMediaPipeline --> chatHelpers
+
+  ChatPage --> ChatContext
+  useChatThreadController --> ChatContext
+  useChatPresenceTyping --> ChatContext
+  useChatMediaPipeline --> ChatContext
+
+  ChatContext --> ApiLayer
+  ChatContext --> SocketLayer
+  ApiLayer --> Backend
+  SocketLayer --> Backend
+  useChatMediaPipeline -->|"signed media URLs"| S3
+```
+
+Why this split is useful:
+
+- `ChatPage` stays readable because it composes smaller UI blocks and hooks instead of owning every effect directly.
+- Hooks remain easier to reason about because each one groups a single workflow instead of hiding all chat logic inside one giant custom hook.
+- Components stay mostly presentational, so layout changes usually do not require touching transport or socket logic.
+- `ChatContext` remains the single frontend boundary for authenticated chat operations, which keeps `api.js` and socket wiring out of the page/component layer.
+
 ---
 
 ## 1) Startup and socket lifecycle
@@ -502,6 +582,31 @@ So:
 - client refresh emits keep typing TTL alive while user is actively typing
 - frontend timer protects UI from stale typing indicators without backend polling
 
+Clarification about scope:
+
+- the explicit snapshot/query path is current-conversation only
+  - `ChatPage` calls `requestConversationPresence(selectedChat)` for the open thread
+- but frontend state is still stored per conversation
+  - socket `typing_changed` events include `conversationId`
+  - client keeps `typingByConversation[conversationId][userId]`
+- this does not mean the backend broadcasts one conversation's typing state to unrelated users
+  - backend fanout is still conversation-scoped
+  - only participants of that conversation receive the `typing_changed` event
+  - over time, one logged-in user may accumulate local typing state for multiple conversations they participate in
+- this lets the app handle push events, quick conversation switching, and cleanup of old conversation typing state correctly
+
+Performance note:
+
+- this does **not** mean the client repeatedly queries typing status for every conversation
+- only the currently selected conversation is explicitly queried/snapshotted
+- typing state for other conversations is updated only when a relevant socket push event arrives
+- those updates are small in-memory state changes, not extra HTTP requests or Redis reads from the browser
+- typing emits are already bounded
+  - only sent while someone is actively typing
+  - throttled to about every 2.5s
+  - delivered only to participants of that conversation
+- in other words: the system pays a small memory/event cost to avoid slower conversation switching and to keep state correct across tabs/pods
+
 Important:
 
 - frontend never reads Redis directly
@@ -543,7 +648,144 @@ This is how sockets on different nodes stay consistent without duplicate DB writ
 
 ---
 
-## 9) Reliability and fallback behavior
+## 9) Message synchronization
+
+Message synchronization ensures every participant's UI stays up to date with the latest messages and conversation metadata. The system uses a layered approach: socket push for immediacy, post-action REST sync for consistency, and reconnect sync for recovery.
+
+### 9.1 Primary channel: socket `message` push
+
+When a message is sent via socket (`send_message`), the backend:
+
+1. persists the message to DB (single write)
+2. emits `send_ack` back to sender
+3. emits `message { message }` to every participant's user room (`user:<id>`)
+
+Frontend `ChatContext` listens for the `message` event:
+
+1. merges the incoming message into `messagesByConversation` state (deduplication by message id)
+2. calls `loadConversations()` to refresh the conversation list (last message preview, unread counts)
+
+This gives real-time message appearance without polling.
+
+### 9.2 Send path: socket-first with HTTP fallback
+
+`sendMessageRealtime` in `ChatContext` attempts delivery via socket with a 4-second ACK timeout:
+
+1. if socket is connected, emit `send_message` and wait for ACK
+2. if ACK arrives: message was persisted and fanned out by the backend socket handler (full fanout to all participants)
+3. if ACK times out or socket is disconnected: fall through to `POST /chat/messages` HTTP endpoint
+4. HTTP endpoint persists the message to DB and then does a best-effort fanout to participants' user rooms
+
+After either path succeeds, the sender calls:
+
+- `loadMessages(conversationId)` — fetches latest messages from DB to ensure local state includes the server-generated message
+- `loadConversations()` — refreshes conversation list for updated last message and unread counts
+
+### 9.3 HTTP fallback fanout behavior
+
+The HTTP `POST /chat/messages` route writes to DB, then runs a best-effort user-room fanout. This means:
+
+- if fanout succeeds, recipients get a normal real-time `message` push
+- if fanout fails, the write still succeeds and recipients will still catch up via reconnect/load sync
+- retries with the same `clientMessageId` are idempotent at DB level; duplicate rows are not created
+
+This keeps HTTP fallback reliable for persistence while preserving real-time behavior whenever socket delivery is available.
+
+### 9.4 Reconnect sync
+
+When the socket reconnects after a disconnection, `ChatContext` runs a full sync:
+
+1. `loadConversations()` — fetches the latest conversation list from DB
+2. for each conversation, `loadMessages(conversationId)` — fetches messages and merges them into local state
+
+This closes the gap for any messages missed during the disconnection window.
+
+### 9.5 Conversation switch sync
+
+When the user selects a different conversation in `ChatPage`:
+
+1. `loadMessages(selectedChat)` is called to hydrate messages for that conversation
+2. the latest message is used to call `markAsRead(selectedChat, latestMessageId)`
+3. `markAsRead` calls `loadConversations()` afterward to refresh unread counts
+
+### 9.6 Message merge and deduplication
+
+All `loadMessages` calls go through `mergeMessages` in `ChatContext`:
+
+1. existing messages for the conversation are indexed by id into a `Map`
+2. incoming messages are merged in (overwriting by id if duplicate)
+3. result is sorted by `createdAt` ascending
+
+This guarantees:
+
+- duplicate messages from overlapping socket push + REST sync do not appear twice
+- withdrawn messages (updated in DB) are reflected when their row is re-fetched
+- ordering remains consistent regardless of arrival order
+
+### 9.7 Withdraw sync
+
+When a message is withdrawn:
+
+- if socket is connected: emit `withdraw_message`, then `loadMessages(conversationId)` to fetch the updated row
+- if socket is disconnected: `POST /chat/messages/:id/withdraw` HTTP route, updated message returned directly
+
+After either path, `loadConversations()` is called to refresh the conversation list.
+
+Backend socket handler for `withdraw_message` re-emits the updated message to all participants via `message` event, so other participants see the withdrawal in real time (socket path only).
+
+### 9.8 No background polling for messages
+
+There is no periodic polling loop that fetches messages or conversations on a timer. Message synchronization relies entirely on:
+
+- socket `message` push events (primary real-time channel)
+- post-action REST sync after send/withdraw/mark-read (consistency)
+- reconnect full sync (recovery)
+
+This keeps HTTP traffic low and avoids request pile-up under load.
+
+### 9.9 Sync flow summary
+
+```mermaid
+flowchart TD
+    subgraph "Send path"
+        S1[sendMessageRealtime called]
+        S2{Socket connected?}
+        S3[emit send_message via socket]
+        S4{ACK received within 4s?}
+        S5[POST /chat/messages via HTTP]
+        S6[loadMessages + loadConversations]
+
+        S1 --> S2
+        S2 -- yes --> S3
+        S3 --> S4
+        S4 -- yes --> S6
+        S4 -- no/timeout --> S5
+        S2 -- no --> S5
+        S5 --> S6
+    end
+
+    subgraph "Receive path"
+        R1[socket message event]
+        R2[merge into messagesByConversation]
+        R3[loadConversations]
+
+        R1 --> R2
+        R2 --> R3
+    end
+
+    subgraph "Recovery"
+        RC1[socket reconnect]
+        RC2[loadConversations]
+        RC3[loadMessages for each conversation]
+
+        RC1 --> RC2
+        RC2 --> RC3
+    end
+```
+
+---
+
+## 10) Reliability and fallback behavior
 
 - If Redis adapter is down, cross-node fanout is degraded; same-node delivery still works.
 - If Redis key-value is unavailable, presence/typing degrade to partial in-memory + event-only behavior:
@@ -562,7 +804,7 @@ Quick mental model:
 
 ---
 
-## 10) Event contract (frontend <-> backend)
+## 11) Event contract (frontend <-> backend)
 
 Client -> Server:
 
@@ -585,7 +827,7 @@ Recommended frontend handling:
 
 ---
 
-## 11) FAQ (from implementation review)
+## 12) FAQ (from implementation review)
 
 Q: Is Redis only storing socket rooms?
 A: No. Socket rooms are managed by Socket.IO (`socket.join("user:<id>")`). Redis is used for:
