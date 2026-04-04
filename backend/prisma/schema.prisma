@@ -20,6 +20,7 @@ model User {
   transactions Transaction[]
   chatParticipants ConversationParticipant[]
   chatMessages Message[]
+  chatMessageDeliveries MessageDelivery[]
   chatReadStates ConversationReadState[]
   drafts       Draft[]
   favorites             Favorite[]
@@ -164,9 +165,25 @@ model Message {
   createdAt       DateTime     @default(now())
   conversation    Conversation @relation(fields: [conversationId], references: [id])
   sender          User         @relation(fields: [senderId], references: [id])
+  deliveries      MessageDelivery[]
 
   @@unique([conversationId, senderId, clientMessageId])
   @@index([conversationId, createdAt])
+}
+
+model MessageDelivery {
+  id          Int      @id @default(autoincrement())
+  messageId   String
+  recipientId String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  deliveredAt DateTime?
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipient   User     @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, recipientId])
+  @@index([messageId])
+  @@index([recipientId, status])
 }
 
 model ConversationReadState {

@@ -1,6 +1,7 @@
 PRAGMA foreign_keys = OFF;
 
 DROP TABLE IF EXISTS "ConversationReadState";
+DROP TABLE IF EXISTS "MessageDelivery";
 DROP TABLE IF EXISTS "Message";
 DROP TABLE IF EXISTS "ConversationParticipant";
 DROP TABLE IF EXISTS "Conversation";
@@ -203,6 +204,32 @@ ON "Message"("conversationId", "senderId", "clientMessageId");
 
 CREATE INDEX "Message_conversationId_createdAt_idx"
 ON "Message"("conversationId", "createdAt");
+
+CREATE TABLE "MessageDelivery" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "messageId" TEXT NOT NULL,
+  "recipientId" TEXT NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'pending',
+  "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "deliveredAt" DATETIME,
+  CONSTRAINT "MessageDelivery_messageId_fkey"
+    FOREIGN KEY ("messageId") REFERENCES "Message" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT "MessageDelivery_recipientId_fkey"
+    FOREIGN KEY ("recipientId") REFERENCES "User" ("id")
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX "MessageDelivery_messageId_recipientId_key"
+ON "MessageDelivery"("messageId", "recipientId");
+
+CREATE INDEX "MessageDelivery_messageId_idx"
+ON "MessageDelivery"("messageId");
+
+CREATE INDEX "MessageDelivery_recipientId_status_idx"
+ON "MessageDelivery"("recipientId", "status");
 
 CREATE TABLE "ConversationReadState" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

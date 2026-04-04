@@ -14,6 +14,7 @@ const authHeaders = (user) => ({
 
 async function resetDb() {
   await prisma.conversationReadState.deleteMany();
+  await prisma.messageDelivery.deleteMany();
   await prisma.message.deleteMany();
   await prisma.conversationParticipant.deleteMany();
   await prisma.conversation.deleteMany();
