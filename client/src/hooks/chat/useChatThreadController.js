@@ -51,15 +51,15 @@ export default function useChatThreadController({
     if (!container || !conversationId || loadingOlderMessages || !hasMoreOlderMessages) return;
     if (container.scrollTop > 40) return;
 
-    const oldestLoadedMessageId = currentMessages[0]?.id;
-    if (!oldestLoadedMessageId) return;
+    const oldestLoadedMessageSequenceNumber = currentMessages[0]?.sequenceNumber;
+    if (!Number.isInteger(oldestLoadedMessageSequenceNumber)) return;
 
     const previousScrollHeight = container.scrollHeight;
     const previousScrollTop = container.scrollTop;
     setLoadingOlderMessages(true);
     try {
       const olderItems = await loadMessages(conversationId, {
-        beforeMessageId: oldestLoadedMessageId,
+        oldestLoadedMessageSequenceNumber,
         limit: pageSize
       });
       setHasMoreOlderByConversation((prev) => ({

@@ -18,10 +18,11 @@ export const buildConversationCacheKey = (userId) => `chat:conv:user:${userId}`;
 
 export const buildMessagesCacheKey = ({
   conversationId,
-  afterMessageId = "none",
-  beforeMessageId = "none",
+  lastReceivedMessageSequenceNumber = "none",
+  oldestLoadedMessageSequenceNumber = "none",
   limit = 100
-}) => `chat:msgs:conv:${conversationId}:after:${afterMessageId || "none"}:before:${beforeMessageId || "none"}:limit:${limit}`;
+}) =>
+  `chat:msgs:conv:${conversationId}:after-seq:${lastReceivedMessageSequenceNumber || "none"}:before-seq:${oldestLoadedMessageSequenceNumber || "none"}:limit:${limit}`;
 
 // get the cached json from the Redis
 export const getCachedJson = async (key) => {

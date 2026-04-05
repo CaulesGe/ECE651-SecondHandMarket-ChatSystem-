@@ -221,15 +221,20 @@ export const createChatRouter = () => {
   });
 
 
-  // GET /chat/messages - sync messages after a cursor.
+  // GET /chat/messages - sync messages using sequence-number cursors.
   router.get("/messages", async (req, res) => {
     try {
-      const { conversationId, afterMessageId, beforeMessageId, limit } = req.query || {};
+      const {
+        conversationId,
+        lastReceivedMessageSequenceNumber,
+        oldestLoadedMessageSequenceNumber,
+        limit
+      } = req.query || {};
       const items = await getMessages({
         userId: req.user.id,
         conversationId,
-        afterMessageId,
-        beforeMessageId,
+        lastReceivedMessageSequenceNumber,
+        oldestLoadedMessageSequenceNumber,
         limit: limit ? Number(limit) : undefined
       });
       return res.json({ items });

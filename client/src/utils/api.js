@@ -349,11 +349,21 @@ export const api = {
     return res.json();
   },
 
-  async getMessages(conversationId, afterMessageId = '', user, limit = 100, beforeMessageId = '') {
+  async getMessages({
+    conversationId,
+    lastReceivedMessageSequenceNumber = '',
+    oldestLoadedMessageSequenceNumber = '',
+    user,
+    limit = 100
+  }) {
     const params = new URLSearchParams();
     if (conversationId) params.append('conversationId', conversationId);
-    if (afterMessageId) params.append('afterMessageId', afterMessageId);
-    if (beforeMessageId) params.append('beforeMessageId', beforeMessageId);
+    if (lastReceivedMessageSequenceNumber !== '' && lastReceivedMessageSequenceNumber !== null && lastReceivedMessageSequenceNumber !== undefined) {
+      params.append('lastReceivedMessageSequenceNumber', String(lastReceivedMessageSequenceNumber));
+    }
+    if (oldestLoadedMessageSequenceNumber !== '' && oldestLoadedMessageSequenceNumber !== null && oldestLoadedMessageSequenceNumber !== undefined) {
+      params.append('oldestLoadedMessageSequenceNumber', String(oldestLoadedMessageSequenceNumber));
+    }
     if (limit) params.append('limit', String(limit));
 
     const res = await fetch(`${CHAT_BASE}/messages?${params}`, {

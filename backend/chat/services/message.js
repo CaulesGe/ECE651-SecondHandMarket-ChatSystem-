@@ -45,6 +45,23 @@ const createPendingDeliveries = async (tx, { conversationId, messageId, senderId
   });
 };
 
+// Allocate the next per-conversation sequence number inside the same transaction
+// that creates the message so ordering stays atomic.
+const allocateNextSequenceNumber = async (tx, conversationId) => {
+  const conversation = await tx.conversation.update({
+    where: { id: conversationId },
+    data: {
+      updatedAt: new Date(),
+      nextMessageSequence: { increment: 1 }
+    },
+    select: {
+      nextMessageSequence: true
+    }
+  });
+
+  return conversation.nextMessageSequence - 1;
+};
+
 // invalidate the cached conversations and messages for the conversation because a new message was sent or a message was withdrawn
 const invalidateConversationAndMessageCaches = async (conversationId) => {
   if (!conversationId) return;
@@ -121,11 +138,14 @@ export const sendMessage = async ({
   try {
     // use transaction to create the message and the pending deliveries for atomicity
     const { message } = await prisma.$transaction(async (tx) => {
+      const sequenceNumber = await allocateNextSequenceNumber(tx, conversationId);
+
       // Create message; unique constraint prevents duplicates.
       const createdMessage = await tx.message.create({
         data: {
           conversationId,
           senderId,
+          sequenceNumber,
           type: normalized.type,
           content: normalized.content,
           mediaObjectKey: normalized.mediaObjectKey,
@@ -137,12 +157,6 @@ export const sendMessage = async ({
         conversationId,
         messageId: createdMessage.id,
         senderId
-      });
-
-      // Touch conversation updatedAt for ordering.
-      await tx.conversation.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() }
       });
 
       return { message: createdMessage };
@@ -309,8 +323,8 @@ export const withdrawMessage = async ({ messageId, userId }) => {
 export const getMessages = async ({
   userId,
   conversationId,
-  afterMessageId, // message id to start from
-  beforeMessageId, // message id to page older from
+  lastReceivedMessageSequenceNumber,
+  oldestLoadedMessageSequenceNumber,
   limit = 100
 }) => {
   if (!userId || !conversationId) {
@@ -325,46 +339,46 @@ export const getMessages = async ({
     throw new Error("User is not a participant of this conversation");
   }
 
-  if (afterMessageId && beforeMessageId) {
-    throw new Error("Use either afterMessageId or beforeMessageId, not both");
+  if (
+    lastReceivedMessageSequenceNumber !== undefined
+    && lastReceivedMessageSequenceNumber !== null
+    && lastReceivedMessageSequenceNumber !== ""
+    && oldestLoadedMessageSequenceNumber !== undefined
+    && oldestLoadedMessageSequenceNumber !== null
+    && oldestLoadedMessageSequenceNumber !== ""
+  ) {
+    throw new Error(
+      "Use either lastReceivedMessageSequenceNumber or oldestLoadedMessageSequenceNumber, not both"
+    );
   }
 
-  // Resolve cursor timestamp if a cursor message id is provided.
-  let afterCreatedAt = null;
-  if (afterMessageId) {
-    const cursorMessage = await prisma.message.findUnique({
-      where: { id: afterMessageId },
-      select: { createdAt: true, conversationId: true }
-    });
-
-    // If cursor exists, verify it belongs to the target conversation.
-    if (cursorMessage) {
-      if (cursorMessage.conversationId !== conversationId) {
-        throw new Error("Cursor does not belong to the conversation");
-      }
-      afterCreatedAt = cursorMessage.createdAt;
+  const parseOptionalSequenceNumber = (value, fieldName) => {
+    if (value === undefined || value === null || value === "") {
+      return null;
     }
-  }
-  let beforeCreatedAt = null;
-  if (beforeMessageId) {
-    const cursorMessage = await prisma.message.findUnique({
-      where: { id: beforeMessageId },
-      select: { createdAt: true, conversationId: true }
-    });
 
-    if (cursorMessage) {
-      if (cursorMessage.conversationId !== conversationId) {
-        throw new Error("Cursor does not belong to the conversation");
-      }
-      beforeCreatedAt = cursorMessage.createdAt;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new Error(`${fieldName} must be a non-negative integer`);
     }
-  }
+
+    return parsed;
+  };
+
+  const normalizedLastReceivedMessageSequenceNumber = parseOptionalSequenceNumber(
+    lastReceivedMessageSequenceNumber,
+    "lastReceivedMessageSequenceNumber"
+  );
+  const normalizedOldestLoadedMessageSequenceNumber = parseOptionalSequenceNumber(
+    oldestLoadedMessageSequenceNumber,
+    "oldestLoadedMessageSequenceNumber"
+  );
 
   const normalizedLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const cacheKey = buildMessagesCacheKey({
     conversationId,
-    afterMessageId,
-    beforeMessageId,
+    lastReceivedMessageSequenceNumber: normalizedLastReceivedMessageSequenceNumber,
+    oldestLoadedMessageSequenceNumber: normalizedOldestLoadedMessageSequenceNumber,
     limit: normalizedLimit
   });
   const cached = await getCachedJson(cacheKey);
@@ -372,25 +386,34 @@ export const getMessages = async ({
 
   // Build sync filter for messages after/before cursor.
   const where = { conversationId };
-  if (afterCreatedAt) {
-    where.createdAt = { gt: afterCreatedAt };
-  } else if (beforeCreatedAt) {
-    where.createdAt = { lt: beforeCreatedAt };
+  if (
+    normalizedLastReceivedMessageSequenceNumber !== null
+    && normalizedLastReceivedMessageSequenceNumber !== undefined
+  ) {
+    where.sequenceNumber = { gt: normalizedLastReceivedMessageSequenceNumber };
+  } else if (
+    normalizedOldestLoadedMessageSequenceNumber !== null
+    && normalizedOldestLoadedMessageSequenceNumber !== undefined
+  ) {
+    where.sequenceNumber = { lt: normalizedOldestLoadedMessageSequenceNumber };
   }
 
   let items = [];
-  if (afterCreatedAt) {
+  if (
+    normalizedLastReceivedMessageSequenceNumber !== null
+    && normalizedLastReceivedMessageSequenceNumber !== undefined
+  ) {
     // Incremental sync for new messages.
     items = await prisma.message.findMany({
       where,
-      orderBy: { createdAt: "asc" },
+      orderBy: { sequenceNumber: "asc" },
       take: normalizedLimit
     });
   } else {
     // Initial load and "load older" both fetch from newest side then reverse for UI replay order.
     items = await prisma.message.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { sequenceNumber: "desc" },
       take: normalizedLimit
     });
     items.reverse();

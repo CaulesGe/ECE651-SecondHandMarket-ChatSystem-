@@ -130,14 +130,15 @@ model TradeReview {
 }
 
 model Conversation {
-  id        String                     @id @default(cuid())
-  createdAt DateTime                   @default(now())
-  updatedAt DateTime                   @updatedAt
-  contextOrderId String?
-  contextItemId  String?
-  participants   ConversationParticipant[]
-  messages       Message[]
-  readStates     ConversationReadState[]
+  id                  String                     @id @default(cuid())
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+  contextOrderId      String?
+  contextItemId       String?
+  nextMessageSequence Int                        @default(1)
+  participants        ConversationParticipant[]
+  messages            Message[]
+  readStates          ConversationReadState[]
 }
 
 model ConversationParticipant {
@@ -156,6 +157,7 @@ model Message {
   id              String       @id @default(cuid())
   conversationId  String
   senderId        String
+  sequenceNumber  Int?
   type            String
   content         String?
   mediaObjectKey  String?
@@ -168,7 +170,9 @@ model Message {
   deliveries      MessageDelivery[]
 
   @@unique([conversationId, senderId, clientMessageId])
+  @@unique([conversationId, sequenceNumber])
   @@index([conversationId, createdAt])
+  @@index([conversationId, sequenceNumber])
 }
 
 model MessageDelivery {

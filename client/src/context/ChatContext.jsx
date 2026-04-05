@@ -87,23 +87,36 @@ export function ChatProvider({ children }) {
   const mergeMessages = useCallback((existing = [], incoming = []) => {
     const map = new Map(existing.map((m) => [m.id, m]));
     incoming.forEach((m) => map.set(m.id, m));
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
+    return Array.from(map.values()).sort((a, b) => {
+      const aSequenceNumber = Number.isInteger(a?.sequenceNumber) ? a.sequenceNumber : null;
+      const bSequenceNumber = Number.isInteger(b?.sequenceNumber) ? b.sequenceNumber : null;
+
+      if (aSequenceNumber !== null && bSequenceNumber !== null && aSequenceNumber !== bSequenceNumber) {
+        return aSequenceNumber - bSequenceNumber;
+      }
+
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
   }, []);
 
 
-  // Load messages for one conversation (supports incremental after-cursor and older-page before-cursor).
+  // Load messages for one conversation using sequence-number cursors.
   const loadMessages = useCallback(async (conversationId, options = {}) => {
     if (!isLoggedIn || !user?.id || !conversationId) return [];
     const {
-      afterMessageId = '',
-      beforeMessageId = '',
+      lastReceivedMessageSequenceNumber = '',
+      oldestLoadedMessageSequenceNumber = '',
       limit = 100
-    } = typeof options === 'string'
-      ? { afterMessageId: options }
+    } = typeof options === 'number' || typeof options === 'string'
+      ? { lastReceivedMessageSequenceNumber: options }
       : (options || {});
-    const data = await api.getMessages(conversationId, afterMessageId, user, limit, beforeMessageId);
+    const data = await api.getMessages({
+      conversationId,
+      lastReceivedMessageSequenceNumber,
+      oldestLoadedMessageSequenceNumber,
+      user,
+      limit
+    });
     const items = data.items || [];
     // update the conversation with the new messages
     setMessagesByConversation((prev) => ({

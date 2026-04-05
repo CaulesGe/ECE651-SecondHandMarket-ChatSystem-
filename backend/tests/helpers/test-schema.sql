@@ -154,6 +154,7 @@ CREATE TABLE "Conversation" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "nextMessageSequence" INTEGER NOT NULL DEFAULT 1,
   "contextOrderId" TEXT,
   "contextItemId" TEXT
 );
@@ -182,6 +183,7 @@ CREATE TABLE "Message" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "conversationId" TEXT NOT NULL,
   "senderId" TEXT NOT NULL,
+  "sequenceNumber" INTEGER,
   "type" TEXT NOT NULL,
   "content" TEXT,
   "mediaObjectKey" TEXT,
@@ -202,8 +204,14 @@ CREATE TABLE "Message" (
 CREATE UNIQUE INDEX "Message_conversationId_senderId_clientMessageId_key"
 ON "Message"("conversationId", "senderId", "clientMessageId");
 
+CREATE UNIQUE INDEX "Message_conversationId_sequenceNumber_key"
+ON "Message"("conversationId", "sequenceNumber");
+
 CREATE INDEX "Message_conversationId_createdAt_idx"
 ON "Message"("conversationId", "createdAt");
+
+CREATE INDEX "Message_conversationId_sequenceNumber_idx"
+ON "Message"("conversationId", "sequenceNumber");
 
 CREATE TABLE "MessageDelivery" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

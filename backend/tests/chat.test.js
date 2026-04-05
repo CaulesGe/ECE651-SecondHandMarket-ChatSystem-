@@ -154,7 +154,7 @@ describe("Chat integration", () => {
     expect(deliveryRows[0].status).toBe("pending");
     expect(deliveryRows[0].deliveredAt).toBeNull();
 
-    await request(app)
+    const sent2 = await request(app)
       .post("/api/chat/messages")
       .set(authHeaders(bob))
       .send({
@@ -175,6 +175,30 @@ describe("Chat integration", () => {
     expect(list.body.items).toHaveLength(2);
     expect(list.body.items[0].content).toBe("hello bob");
     expect(list.body.items[1].content).toBe("hello alice");
+
+    const afterCursor = await request(app)
+      .get("/api/chat/messages")
+      .set(authHeaders(alice))
+      .query({
+        conversationId,
+        lastReceivedMessageSequenceNumber: sent1.body.message.sequenceNumber,
+        limit: 100
+      })
+      .expect(200);
+    expect(afterCursor.body.items).toHaveLength(1);
+    expect(afterCursor.body.items[0].id).toBe(sent2.body.message.id);
+
+    const beforeCursor = await request(app)
+      .get("/api/chat/messages")
+      .set(authHeaders(alice))
+      .query({
+        conversationId,
+        oldestLoadedMessageSequenceNumber: sent2.body.message.sequenceNumber,
+        limit: 100
+      })
+      .expect(200);
+    expect(beforeCursor.body.items).toHaveLength(1);
+    expect(beforeCursor.body.items[0].id).toBe(sent1.body.message.id);
   });
 
   test("POST /api/chat/messages rejects non-participant sender", async () => {
