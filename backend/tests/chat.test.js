@@ -201,6 +201,81 @@ describe("Chat integration", () => {
     expect(beforeCursor.body.items[0].id).toBe(sent1.body.message.id);
   });
 
+  test("concurrent sends allocate unique sequence numbers and replay in sequence order", async () => {
+    const alice = await createUser({
+      id: "u_chat_concurrent_1",
+      name: "Alice",
+      email: "alice_concurrent@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_concurrent_2",
+      name: "Bob",
+      email: "bob_concurrent@example.com"
+    });
+
+    const convoRes = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = convoRes.body.conversation.id;
+
+    const [sendFromAlice, sendFromBob] = await Promise.all([
+      request(app)
+        .post("/api/chat/messages")
+        .set(authHeaders(alice))
+        .send({
+          conversationId,
+          type: "text",
+          content: "alice parallel message",
+          clientMessageId: "cm_parallel_alice"
+        })
+        .expect(201),
+      request(app)
+        .post("/api/chat/messages")
+        .set(authHeaders(bob))
+        .send({
+          conversationId,
+          type: "text",
+          content: "bob parallel message",
+          clientMessageId: "cm_parallel_bob"
+        })
+        .expect(201)
+    ]);
+
+    const assignedSequenceNumbers = [
+      sendFromAlice.body.message.sequenceNumber,
+      sendFromBob.body.message.sequenceNumber
+    ];
+    expect(assignedSequenceNumbers.every((value) => Number.isInteger(value))).toBe(true);
+    expect(new Set(assignedSequenceNumbers).size).toBe(2);
+    expect([...assignedSequenceNumbers].sort((a, b) => a - b)).toEqual([1, 2]);
+
+    const storedMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { sequenceNumber: "asc" },
+      select: {
+        id: true,
+        senderId: true,
+        sequenceNumber: true
+      }
+    });
+    expect(storedMessages).toHaveLength(2);
+    expect(storedMessages.map((message) => message.sequenceNumber)).toEqual([1, 2]);
+
+    const replay = await request(app)
+      .get("/api/chat/messages")
+      .set(authHeaders(alice))
+      .query({ conversationId, limit: 100 })
+      .expect(200);
+
+    expect(replay.body.items).toHaveLength(2);
+    expect(replay.body.items.map((message) => message.sequenceNumber)).toEqual([1, 2]);
+    expect(replay.body.items.map((message) => message.id)).toEqual(
+      storedMessages.map((message) => message.id)
+    );
+  });
+
   test("POST /api/chat/messages rejects non-participant sender", async () => {
     const alice = await createUser({
       id: "u_chat_5",
@@ -408,6 +483,141 @@ describe("Chat integration", () => {
     expect(secondReplayCount).toBe(0);
     expect(emitted).toHaveLength(1);
     expect(emitted[0].payload.delivery.messageId).toBe(sent.body.message.id);
+  });
+
+  test("reconnect-style replay re-emits all pending messages for a recipient across conversations", async () => {
+    const alice = await createUser({
+      id: "u_chat_reconnect_1",
+      name: "Alice",
+      email: "alice_reconnect@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_reconnect_2",
+      name: "Bob",
+      email: "bob_reconnect@example.com"
+    });
+    const carol = await createUser({
+      id: "u_chat_reconnect_3",
+      name: "Carol",
+      email: "carol_reconnect@example.com"
+    });
+
+    const convoWithAlice = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const convoWithCarol = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(carol))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+
+    const firstMessage = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId: convoWithAlice.body.conversation.id,
+        type: "text",
+        content: "pending from alice",
+        clientMessageId: "cm_reconnect_1"
+      })
+      .expect(201);
+    const secondMessage = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(carol))
+      .send({
+        conversationId: convoWithCarol.body.conversation.id,
+        type: "text",
+        content: "pending from carol",
+        clientMessageId: "cm_reconnect_2"
+      })
+      .expect(201);
+
+    const emitted = [];
+    const replayCount = await replayPendingDeliveriesForRecipientNow({
+      recipientId: bob.id,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+
+    expect(replayCount).toBe(2);
+    expect(emitted).toHaveLength(2);
+    expect(emitted.map((entry) => entry.userId)).toEqual([bob.id, bob.id]);
+    expect(emitted.map((entry) => entry.event)).toEqual(["message", "message"]);
+    expect(new Set(emitted.map((entry) => entry.payload.delivery.messageId))).toEqual(
+      new Set([firstMessage.body.message.id, secondMessage.body.message.id])
+    );
+    expect(new Set(emitted.map((entry) => entry.payload.delivery.conversationId))).toEqual(
+      new Set([convoWithAlice.body.conversation.id, convoWithCarol.body.conversation.id])
+    );
+  });
+
+  test("activity replay helper can scope pending replay to one active conversation", async () => {
+    const alice = await createUser({
+      id: "u_chat_presence_replay_1",
+      name: "Alice",
+      email: "alice_presence_replay@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_presence_replay_2",
+      name: "Bob",
+      email: "bob_presence_replay@example.com"
+    });
+    const carol = await createUser({
+      id: "u_chat_presence_replay_3",
+      name: "Carol",
+      email: "carol_presence_replay@example.com"
+    });
+
+    const convoWithAlice = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const convoWithCarol = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(carol))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+
+    const firstMessage = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId: convoWithAlice.body.conversation.id,
+        type: "text",
+        content: "active conversation replay target",
+        clientMessageId: "cm_presence_replay_1"
+      })
+      .expect(201);
+    await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(carol))
+      .send({
+        conversationId: convoWithCarol.body.conversation.id,
+        type: "text",
+        content: "other conversation should stay pending",
+        clientMessageId: "cm_presence_replay_2"
+      })
+      .expect(201);
+
+    const emitted = [];
+    const replayCount = await replayPendingDeliveriesForRecipientNow({
+      recipientId: bob.id,
+      conversationId: convoWithAlice.body.conversation.id,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+
+    expect(replayCount).toBe(1);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].userId).toBe(bob.id);
+    expect(emitted[0].event).toBe("message");
+    expect(emitted[0].payload.delivery.messageId).toBe(firstMessage.body.message.id);
+    expect(emitted[0].payload.delivery.conversationId).toBe(convoWithAlice.body.conversation.id);
   });
 
   test("single retry helper only re-emits recipients whose message deliveries are still pending", async () => {

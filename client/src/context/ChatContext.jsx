@@ -23,6 +23,7 @@ export function ChatProvider({ children }) {
     fallbackHttp: 0,
     lastFallbackReason: null
   });
+  const messagesByConversationRef = useRef({});
   const typingExpiryTimersRef = useRef(new Map()); // used to clear the typing state for the conversation and user
   const socketServerUrl = import.meta.env.DEV ? 'http://localhost:3000' : undefined;
 
@@ -99,6 +100,79 @@ export function ChatProvider({ children }) {
     });
   }, []);
 
+  useEffect(() => {
+    messagesByConversationRef.current = messagesByConversation;
+  }, [messagesByConversation]);
+
+  const updateConversationWithMessage = useCallback((message, { incrementUnread = false } = {}) => {
+    if (!message?.conversationId) return;
+
+    const getActivityTime = (conversation) => {
+      const activitySource = conversation?.lastMessage?.createdAt || conversation?.updatedAt;
+      const activityTime = new Date(activitySource || 0).getTime();
+      return Number.isFinite(activityTime) ? activityTime : 0;
+    };
+
+    const getMessageOrderValue = (value) => {
+      if (Number.isInteger(value?.sequenceNumber)) {
+        return { type: 'sequence', value: value.sequenceNumber };
+      }
+
+      const timestamp = new Date(value?.createdAt || 0).getTime();
+      return {
+        type: 'time',
+        value: Number.isFinite(timestamp) ? timestamp : 0
+      };
+    };
+
+    setConversations((prev) => {
+      const conversationIndex = prev.findIndex((item) => item.id === message.conversationId);
+      if (conversationIndex === -1) return prev;
+
+      const existingConversation = prev[conversationIndex];
+      const existingLastMessage = existingConversation.lastMessage || null;
+      const incomingOrder = getMessageOrderValue(message);
+      const existingOrder = getMessageOrderValue(existingLastMessage);
+      const shouldReplaceLastMessage = (
+        !existingLastMessage
+        || existingLastMessage.id === message.id
+        || (
+          incomingOrder.type === existingOrder.type
+            ? incomingOrder.value >= existingOrder.value
+            : incomingOrder.type === 'sequence'
+        )
+      );
+
+      const updatedConversation = {
+        ...existingConversation,
+        lastMessage: shouldReplaceLastMessage ? message : existingLastMessage,
+        updatedAt: shouldReplaceLastMessage
+          ? (message.createdAt || existingConversation.updatedAt)
+          : existingConversation.updatedAt,
+        unreadCount: incrementUnread
+          ? Number(existingConversation.unreadCount || 0) + 1
+          : Number(existingConversation.unreadCount || 0)
+      };
+
+      return prev
+        .map((item, index) => (index === conversationIndex ? updatedConversation : item))
+        .sort((a, b) => getActivityTime(b) - getActivityTime(a));
+    });
+  }, []);
+
+  const getLatestLoadedMessageSequenceNumber = useCallback((conversationId) => {
+    const conversationMessages = messagesByConversation[conversationId] || [];
+    // get the latest message sequence number
+    for (let index = conversationMessages.length - 1; index >= 0; index -= 1) {
+      const sequenceNumber = conversationMessages[index]?.sequenceNumber;
+      if (Number.isInteger(sequenceNumber)) {
+        return sequenceNumber;
+      }
+    }
+
+    return null;
+  }, [messagesByConversation]);
+
 
   // Load messages for one conversation using sequence-number cursors.
   const loadMessages = useCallback(async (conversationId, options = {}) => {
@@ -140,16 +214,18 @@ export function ChatProvider({ children }) {
 
     const socket = socketRef.current;
     const payload = { conversationId, type, content, mediaObjectKey, clientMessageId, recipientId };
+    let persistedMessage = null;
     let deliveredViaSocket = false;
     if (socket?.connected) {
       try {
-        await new Promise((resolve, reject) => {
+        const ack = await new Promise((resolve, reject) => {
           let settled = false;
           const timeoutId = setTimeout(() => {
             if (settled) return;
             settled = true;
             reject(new Error('Socket acknowledgement timeout'));
           }, SOCKET_SEND_ACK_TIMEOUT_MS);
+          
           socket.emit('send_message', payload, (ack) => {
             if (settled) return;
             settled = true;
@@ -158,6 +234,7 @@ export function ChatProvider({ children }) {
             else resolve(ack);
           });
         });
+        persistedMessage = ack?.message || null;
         deliveredViaSocket = true;
         incrementSendDebugCounter('socket');
       } catch (_error) {
@@ -166,16 +243,31 @@ export function ChatProvider({ children }) {
         incrementSendDebugCounter('fallbackHttp', _error?.message || 'socket emit failed');
       }
     }
+    // if the message was not delivered via socket, fallback to HTTP
     if (!deliveredViaSocket) {
       if (!socket?.connected) {
         incrementSendDebugCounter('fallbackHttp', 'socket not connected');
       }
-      await api.sendMessage(conversationId, type, content, mediaObjectKey, clientMessageId, user);
+      const data = await api.sendMessage(conversationId, type, content, mediaObjectKey, clientMessageId, user);
+      persistedMessage = data?.message || null;
     }
 
-    // Sync latest data after send for consistent local state.
-    await Promise.all([loadMessages(conversationId), loadConversations()]);
-  }, [isLoggedIn, user, generateClientMessageId, loadMessages, loadConversations]);
+    if (persistedMessage?.conversationId) {
+      setMessagesByConversation((prev) => ({
+        ...prev,
+        [persistedMessage.conversationId]: mergeMessages(prev[persistedMessage.conversationId], [persistedMessage])
+      }));
+      updateConversationWithMessage(persistedMessage);
+    }
+
+    return persistedMessage;
+  }, [
+    isLoggedIn,
+    user,
+    generateClientMessageId,
+    mergeMessages,
+    updateConversationWithMessage
+  ]);
 
   // Withdraw own message (<= 2 minutes) via WebSocket when connected, otherwise HTTP.
   const withdrawMessageRealtime = useCallback(async ({ messageId, conversationId }) => {
@@ -185,7 +277,7 @@ export function ChatProvider({ children }) {
     const socket = socketRef.current;
     let updatedMessage = null;
     if (socket?.connected) {
-      await new Promise((resolve, reject) => {
+      const ack = await new Promise((resolve, reject) => {
         socket.emit('withdraw_message', { messageId }, (ack) => {
           if (ack?.error) {
             reject(new Error(ack.error));
@@ -194,8 +286,7 @@ export function ChatProvider({ children }) {
           resolve(ack);
         });
       });
-      const latest = await loadMessages(conversationId);
-      updatedMessage = latest.find((item) => item.id === messageId) || null;
+      updatedMessage = ack?.message || null;
     } else {
       const data = await api.withdrawMessage(messageId, user);
       updatedMessage = data.message || null;
@@ -206,10 +297,10 @@ export function ChatProvider({ children }) {
         ...prev,
         [updatedMessage.conversationId]: mergeMessages(prev[updatedMessage.conversationId], [updatedMessage])
       }));
+      updateConversationWithMessage(updatedMessage);
     }
-    await loadConversations();
     return updatedMessage;
-  }, [isLoggedIn, user, loadMessages, loadConversations, mergeMessages]);
+  }, [isLoggedIn, user, mergeMessages, updateConversationWithMessage]);
 
   // Upload media file to S3 via presigned URL and return objectKey for message payload.
   const uploadMediaForConversation = useCallback(async (conversationId, file) => {
@@ -368,10 +459,21 @@ export function ChatProvider({ children }) {
 
     socket.on('message', ({ message, delivery }) => {
       if (!message?.conversationId) return;
+      const messageAlreadyLoaded = Boolean(
+        messagesByConversationRef.current[message.conversationId]?.some((item) => item.id === message.id)
+      );
       setMessagesByConversation((prev) => ({
         ...prev,
         [message.conversationId]: mergeMessages(prev[message.conversationId], [message])
       }));
+      updateConversationWithMessage(message, {
+        incrementUnread: (
+          !messageAlreadyLoaded
+          && message.senderId
+          && message.senderId !== user?.id
+          && !message.isWithdrawn
+        )
+      });
       if (
         delivery?.conversationId
         && delivery?.messageId
@@ -384,8 +486,6 @@ export function ChatProvider({ children }) {
           messageId: delivery.messageId
         }).catch(() => {});
       }
-      // Refresh list so last message and unread counts stay current.
-      loadConversations().catch(() => {});
     });
 
     socket.on('presence_changed', ({ userId: changedUserId, isOnline }) => {
@@ -436,7 +536,13 @@ export function ChatProvider({ children }) {
       // Sync missed messages on reconnect for all known conversations.
       const currentConversations = await loadConversations().catch(() => []);
       for (const convo of currentConversations) {
-        await loadMessages(convo.id).catch(() => {});
+        const lastReceivedMessageSequenceNumber = getLatestLoadedMessageSequenceNumber(convo.id);
+        await loadMessages(
+          convo.id,
+          Number.isInteger(lastReceivedMessageSequenceNumber)
+            ? { lastReceivedMessageSequenceNumber }
+            : undefined
+        ).catch(() => {});
       }
     });
 
@@ -447,7 +553,20 @@ export function ChatProvider({ children }) {
       socketRef.current = null;
       setSocketConnected(false);
     };
-  }, [acknowledgeMessageDelivery, isLoggedIn, user?.id, user?.role, user?.name, user?.email, loadConversations, loadMessages, mergeMessages, socketServerUrl]);
+  }, [
+    acknowledgeMessageDelivery,
+    getLatestLoadedMessageSequenceNumber,
+    isLoggedIn,
+    user?.id,
+    user?.role,
+    user?.name,
+    user?.email,
+    loadConversations,
+    loadMessages,
+    mergeMessages,
+    updateConversationWithMessage,
+    socketServerUrl
+  ]);
 
   const chatCount = useMemo(
     () => conversations.reduce((sum, convo) => sum + Number(convo.unreadCount || 0), 0),

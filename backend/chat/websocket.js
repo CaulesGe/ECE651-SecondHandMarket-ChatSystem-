@@ -520,10 +520,12 @@ export const initChatSocket = (httpServer) => {
           clientMessageId: payload.clientMessageId
         });
 
-        // Acknowledge receipt with server-generated ID.
+        // Acknowledge receipt with the canonical saved message so the sender
+        // can update local state without an immediate refetch.
         const ackPayload = {
           clientMessageId: payload.clientMessageId,
-          messageId: message.id
+          messageId: message.id,
+          message
         };
         socket.emit("send_ack", ackPayload);
         // return the ack payload to the client
@@ -570,7 +572,10 @@ export const initChatSocket = (httpServer) => {
           message
         });
 
-        reply(callback, { messageId: message.id });
+        reply(callback, {
+          messageId: message.id,
+          message
+        });
       } catch (error) {
         reply(callback, { error: error.message || "Failed to withdraw message" });
       }

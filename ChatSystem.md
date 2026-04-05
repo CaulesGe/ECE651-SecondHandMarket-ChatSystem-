@@ -824,8 +824,8 @@ Backend socket handler for `withdraw_message` re-emits the updated message to al
 There is no periodic polling loop that fetches messages or conversations on a timer. Message synchronization relies entirely on:
 
 - socket `message` push events (primary real-time channel)
-- post-action REST sync after send/withdraw/mark-read (consistency)
-- reconnect full sync (recovery)
+- local merge of canonical message payloads returned by send/withdraw ACKs
+- reconnect sync for missed live events (recovery)
 
 This keeps HTTP traffic low and avoids request pile-up under load.
 
@@ -839,7 +839,8 @@ flowchart TD
         S3[emit send_message via socket]
         S4{ACK received within 4s?}
         S5[POST /chat/messages via HTTP]
-        S6[loadMessages + loadConversations]
+        S6[merge canonical message locally]
+        S7[update affected conversation locally]
 
         S1 --> S2
         S2 -- yes --> S3
@@ -848,12 +849,13 @@ flowchart TD
         S4 -- no/timeout --> S5
         S2 -- no --> S5
         S5 --> S6
+        S6 --> S7
     end
 
     subgraph "Receive path"
         R1[socket message event]
         R2[merge into messagesByConversation]
-        R3[loadConversations]
+        R3[update affected conversation locally]
 
         R1 --> R2
         R2 --> R3
@@ -887,6 +889,23 @@ Quick mental model:
 - Redis TTL keys = shared short-lived truth and snapshot recovery
 - frontend timers = stale-indicator safety net
 - DB = durable source of truth
+
+### 10.1 Current status against the article's concerns
+
+| Concern from article | Current status | What is implemented now | Remaining limitation |
+| --- | --- | --- | --- |
+| Delivery guarantee / "can B still receive after a brief disconnect?" | **Partial** | Messages are persisted first, per-recipient `MessageDelivery` rows are created, recipients ACK with `message_delivery_ack`, server marks delivered, does one short retry, then replays pending deliveries on reconnect or `presence_subscribe`. Client merges by message id, so duplicate emits do not duplicate UI rows. | This is strong application-level at-least-once, but not exactly-once. Replay coalescing is node-local in memory, and there is no per-device delivered watermark yet. |
+| Message ordering / "do both users see the same order?" | **Handled** | Server allocates a per-conversation `sequenceNumber` atomically during message write, backend pagination uses sequence cursors, and client merge/sort prefers `sequenceNumber`. | Older unread-count logic still compares `createdAt` for read tracking; ordering for message lists is sequence-based, but read-state math is not yet sequence-based. |
+| Offline message sync / reconnect recovery | **Partial** | Reconnect path loads conversations and fetches messages after the latest loaded sequence. Pending deliveries are replayed on connect and when the recipient activates a conversation. | Recovery is driven by activity/reconnect, not by a persistent per-device last-delivered checkpoint, so replay scope is broader than necessary. |
+| Horizontal scaling / "A on node1, B on node2" | **Handled** | Socket.IO Redis adapter fans out room-targeted events across nodes. Durable truth remains in DB, presence/typing snapshots use Redis TTL keys. | Cross-node message fanout is covered, but replay coalescing is not cluster-wide yet because the guard is still in local memory. |
+| Connection management / cleanup | **Partial** | Presence and typing use TTL-backed keys, disconnect cleanup removes local socket state, and client-side timers clear stale typing UI. | If Redis is unavailable, presence/typing snapshot recovery degrades; some edge behavior falls back to best effort until Redis returns. |
+
+### 10.2 Smallest remaining hardening steps
+
+1. Move replay coalescing from per-node memory to Redis so multiple nodes cannot trigger the same recipient replay burst.
+2. Add a per-device or per-session "last delivered sequence number" checkpoint so reconnect recovery can request only the exact missing range instead of replaying all still-pending deliveries.
+3. Move unread/read tracking from `createdAt` comparisons to `sequenceNumber` comparisons so read state and ordering use the same monotonic source of truth.
+4. Add operational visibility for long-pending deliveries (metrics/logging or a small sweeper job) so "stuck pending forever" cases are observable.
 
 ---
 
@@ -925,8 +944,9 @@ Recommended payloads:
   - `delivery = { conversationId, messageId }`
   - `delivery` carries the stable identifiers the recipient uses when emitting `message_delivery_ack`
 - `send_ack`
-  - `{ clientMessageId, messageId }`
+  - `{ clientMessageId, messageId, message }`
   - emitted back to the sender after the server persists the message
+  - `message` is the canonical saved DB row, including server-assigned fields such as `sequenceNumber`
 
 ---
 
