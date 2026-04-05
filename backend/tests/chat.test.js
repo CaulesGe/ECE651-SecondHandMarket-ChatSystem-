@@ -1,6 +1,11 @@
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { app } from "../server.js";
+import { markMessageDeliveryDelivered } from "../chat/services/message.js";
+import {
+  replayPendingDeliveriesForRecipientNow,
+  retryPendingMessageDeliveryNow
+} from "../chat/websocket.js";
 import { prepareTestDb } from "./helpers/prepareTestDb.js";
 
 const prisma = new PrismaClient();
@@ -140,6 +145,14 @@ describe("Chat integration", () => {
 
     expect(sent1.body.message.content).toBe("hello bob");
     expect(sent1.body.message.senderId).toBe(alice.id);
+    const deliveryRows = await prisma.messageDelivery.findMany({
+      where: { messageId: sent1.body.message.id },
+      orderBy: { recipientId: "asc" }
+    });
+    expect(deliveryRows).toHaveLength(1);
+    expect(deliveryRows[0].recipientId).toBe(bob.id);
+    expect(deliveryRows[0].status).toBe("pending");
+    expect(deliveryRows[0].deliveredAt).toBeNull();
 
     await request(app)
       .post("/api/chat/messages")
@@ -200,6 +213,236 @@ describe("Chat integration", () => {
       .expect(400);
 
     expect(denied.body.message).toBe("Sender is not a participant of this conversation");
+  });
+
+  test("message delivery ack marks the recipient delivery row as delivered", async () => {
+    const alice = await createUser({
+      id: "u_chat_delivery_1",
+      name: "Alice",
+      email: "alice_delivery@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_delivery_2",
+      name: "Bob",
+      email: "bob_delivery@example.com"
+    });
+
+    const convoRes = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = convoRes.body.conversation.id;
+
+    const sent = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId,
+        type: "text",
+        content: "track delivery",
+        clientMessageId: "cm_delivery_1"
+      })
+      .expect(201);
+
+    const beforeAck = await prisma.messageDelivery.findUnique({
+      where: {
+        messageId_recipientId: {
+          messageId: sent.body.message.id,
+          recipientId: bob.id
+        }
+      }
+    });
+    expect(beforeAck?.status).toBe("pending");
+    expect(beforeAck?.deliveredAt).toBeNull();
+
+    const updated = await markMessageDeliveryDelivered({
+      conversationId,
+      messageId: sent.body.message.id,
+      recipientId: bob.id
+    });
+    expect(updated.status).toBe("delivered");
+    expect(updated.deliveredAt).not.toBeNull();
+
+    const afterAck = await prisma.messageDelivery.findUnique({
+      where: {
+        messageId_recipientId: {
+          messageId: sent.body.message.id,
+          recipientId: bob.id
+        }
+      }
+    });
+    expect(afterAck?.status).toBe("delivered");
+    expect(afterAck?.deliveredAt).not.toBeNull();
+  });
+
+  test("activity replay helper only re-emits to recipients whose deliveries are still pending", async () => {
+    const alice = await createUser({
+      id: "u_chat_retry_1",
+      name: "Alice",
+      email: "alice_retry@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_retry_2",
+      name: "Bob",
+      email: "bob_retry@example.com"
+    });
+
+    const convoRes = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = convoRes.body.conversation.id;
+
+    const sent = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId,
+        type: "text",
+        content: "retry me",
+        clientMessageId: "cm_retry_delivery_1"
+      })
+      .expect(201);
+
+    const emitted = [];
+    const firstReplayCount = await replayPendingDeliveriesForRecipientNow({
+      recipientId: bob.id,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+    expect(firstReplayCount).toBe(1);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].userId).toBe(bob.id);
+    expect(emitted[0].event).toBe("message");
+    expect(emitted[0].payload.delivery.messageId).toBe(sent.body.message.id);
+    expect(emitted[0].payload.delivery.conversationId).toBe(conversationId);
+
+    await markMessageDeliveryDelivered({
+      conversationId,
+      messageId: sent.body.message.id,
+      recipientId: bob.id
+    });
+
+    const afterDeliveredReplayCount = await replayPendingDeliveriesForRecipientNow({
+      recipientId: bob.id,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+    expect(afterDeliveredReplayCount).toBe(0);
+    expect(emitted).toHaveLength(1);
+  });
+
+  test("activity replay helper coalesces immediate repeated triggers for the same recipient", async () => {
+    const alice = await createUser({
+      id: "u_chat_replay_coalesce_1",
+      name: "Alice",
+      email: "alice_replay_coalesce@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_replay_coalesce_2",
+      name: "Bob",
+      email: "bob_replay_coalesce@example.com"
+    });
+
+    const convoRes = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = convoRes.body.conversation.id;
+
+    const sent = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId,
+        type: "text",
+        content: "coalesce replay",
+        clientMessageId: "cm_replay_coalesce_1"
+      })
+      .expect(201);
+
+    const emitted = [];
+    const firstReplayCount = await replayPendingDeliveriesForRecipientNow({
+      recipientId: bob.id,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+    const secondReplayCount = await replayPendingDeliveriesForRecipientNow({
+      recipientId: bob.id,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+
+    expect(firstReplayCount).toBe(1);
+    expect(secondReplayCount).toBe(0);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].payload.delivery.messageId).toBe(sent.body.message.id);
+  });
+
+  test("single retry helper only re-emits recipients whose message deliveries are still pending", async () => {
+    const alice = await createUser({
+      id: "u_chat_retry_msg_1",
+      name: "Alice",
+      email: "alice_retry_msg@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_retry_msg_2",
+      name: "Bob",
+      email: "bob_retry_msg@example.com"
+    });
+
+    const convoRes = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = convoRes.body.conversation.id;
+
+    const sent = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId,
+        type: "text",
+        content: "retry once",
+        clientMessageId: "cm_retry_message_once_1"
+      })
+      .expect(201);
+
+    const emitted = [];
+    const firstRetryCount = await retryPendingMessageDeliveryNow({
+      message: sent.body.message,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+    expect(firstRetryCount).toBe(1);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].userId).toBe(bob.id);
+    expect(emitted[0].event).toBe("message");
+    expect(emitted[0].payload.delivery.messageId).toBe(sent.body.message.id);
+
+    await markMessageDeliveryDelivered({
+      conversationId,
+      messageId: sent.body.message.id,
+      recipientId: bob.id
+    });
+
+    const afterDeliveredRetryCount = await retryPendingMessageDeliveryNow({
+      message: sent.body.message,
+      emitFn: (userId, event, payload) => {
+        emitted.push({ userId, event, payload });
+      }
+    });
+    expect(afterDeliveredRetryCount).toBe(0);
+    expect(emitted).toHaveLength(1);
   });
 
   test("GET /api/chat/conversations includes unreadCount and mark-read resets it", async () => {

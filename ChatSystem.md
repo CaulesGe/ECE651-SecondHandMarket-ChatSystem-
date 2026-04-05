@@ -257,10 +257,49 @@ Backend `send_message` handler:
 
 1. validates sender belongs to conversation
 2. writes message once to DB (`sendMessage(...)`)
-3. sends ack to sender: `send_ack { clientMessageId, messageId }`
-4. clears sender typing state
-5. loads participant user IDs from DB
-6. emits `message` to each `user:<participantId>` room // room contains all sockets for the user
+3. creates `MessageDelivery` rows in `pending` state for recipients
+4. sends ack to sender: `send_ack { clientMessageId, messageId }`
+5. clears sender typing state
+6. loads participant user IDs from DB
+7. emits `message { message, delivery }` to each `user:<participantId>` room // room contains all sockets for the user
+8. if some recipients are still `pending`, schedules one short retry and then leaves any remaining pending rows for later activity-based replay
+
+`delivery` is a compact metadata object:
+
+- `{ conversationId, messageId }`
+- it exists so the recipient can emit `message_delivery_ack` without re-deriving identifiers from UI state
+
+When a recipient receives the `message` event:
+
+1. frontend merges the message into local conversation state
+2. if the message came from another user and is not withdrawn, frontend emits `message_delivery_ack`
+3. backend marks that recipient's `MessageDelivery` row as `delivered`
+
+Plain-English workflow:
+
+1. User A sends `send_message`.
+2. Server saves the message to DB.
+3. Server creates recipient `MessageDelivery` rows with status `pending`.
+4. Server sends `send_ack` back to User A.
+   - this ACK means the server persisted the message
+   - it does **not** mean the recipient has received it yet
+5. Server emits `message { message, delivery }` to conversation peers.
+6. Server checks whether any recipient delivery rows are still `pending`.
+7. If some recipients are still pending, server schedules one short retry.
+8. If recipients are still pending after that retry, server leaves them pending until receiver activity triggers replay.
+9. If User B receives the message, User B's client emits `message_delivery_ack`.
+10. Backend handles that ACK by calling `markMessageDeliveryDelivered(...)`.
+11. That recipient's delivery row becomes `delivered`, and later retries/replays skip it.
+
+Replay coalescing / rate limiting:
+
+- activity-based replay is guarded per recipient on each backend node
+- if a replay for that recipient is already in progress, the new trigger is skipped
+- if the same recipient was replayed very recently, the new trigger is skipped
+- this prevents replay storms such as:
+  - reconnect replay
+  - followed immediately by `presence_subscribe`
+  - plus multiple tabs reconnecting at nearly the same time
 
 Important: DB write happens once on the node that handled `send_message`. Other nodes only forward packet to local sockets.
 
@@ -276,12 +315,47 @@ sequenceDiagram
   participant UB as User B Client
 
   UA->>N1: emit("send_message", payload)
-  N1->>DB: insert message (single write)
-  DB-->>N1: saved row
-  N1-->>UA: emit("send_ack")
-  N1->>R: adapter publishes room packets
-  R->>N2: adapter forwards packet
-  N2-->>UB: emit("message", {message})
+  N1->>DB: insert message row
+  N1->>DB: insert pending MessageDelivery rows
+  DB-->>N1: persisted
+  N1-->>UA: emit("send_ack", { clientMessageId, messageId })
+  N1->>R: publish room-targeted message packet
+  R->>N2: forward packet
+  N2-->>UB: emit("message", { message, delivery })
+  UB->>N2: emit("message_delivery_ack", { conversationId, messageId })
+  N2->>DB: mark recipient delivery row delivered
+  alt Recipient misses initial delivery
+    N1->>DB: query pending MessageDelivery rows
+    N1->>R: publish one short retry for pending recipients only
+    R->>N2: forward retry packet
+    N2-->>UB: emit("message", { message, delivery })
+  end
+  alt Recipient is still pending after short retry
+    N2-->>UB: no delivery ACK yet
+    UB->>N2: reconnect or open conversation
+    N2->>DB: query pending MessageDelivery rows for recipient
+    N2-->>UB: replay pending message payloads
+  end
+```
+
+```mermaid
+flowchart TD
+    S1[Client A emit send_message] --> S2[Server validates membership]
+    S2 --> S3[Persist message row]
+    S3 --> S4[Create pending MessageDelivery rows]
+    S4 --> S5[Emit send_ack to sender]
+    S5 --> S6[Emit message payload to participant user rooms]
+    S6 --> S7[Recipient client receives message]
+    S7 --> S8[Recipient emits message_delivery_ack]
+    S8 --> S9[Server marks recipient delivery row delivered]
+    S6 --> S10{Pending recipients remain?}
+    S10 -- yes --> S11[Schedule one short retry]
+    S11 --> S12{Still pending after retry?}
+    S12 -- yes --> S13[Wait for receiver activity]
+    S13 --> S14[Replay pending messages on connect or conversation open]
+    S14 --> S10
+    S12 -- no --> S15[Stop retry/replay path]
+    S10 -- no --> S15
 ```
 
 ---
@@ -657,13 +731,17 @@ Message synchronization ensures every participant's UI stays up to date with the
 When a message is sent via socket (`send_message`), the backend:
 
 1. persists the message to DB (single write)
-2. emits `send_ack` back to sender
-3. emits `message { message }` to every participant's user room (`user:<id>`)
+2. creates recipient delivery rows in `pending` state
+3. emits `send_ack` back to sender
+4. emits `message { message, delivery }` to every participant's user room (`user:<id>`)
+5. performs one short retry for recipients still in `pending` state
+6. leaves any still-undelivered recipients in `pending` state for activity-triggered replay
 
 Frontend `ChatContext` listens for the `message` event:
 
 1. merges the incoming message into `messagesByConversation` state (deduplication by message id)
-2. calls `loadConversations()` to refresh the conversation list (last message preview, unread counts)
+2. if the message was sent by another user and is not withdrawn, emits `message_delivery_ack`
+3. calls `loadConversations()` to refresh the conversation list (last message preview, unread counts)
 
 This gives real-time message appearance without polling.
 
@@ -674,22 +752,28 @@ This gives real-time message appearance without polling.
 1. if socket is connected, emit `send_message` and wait for ACK
 2. if ACK arrives: message was persisted and fanned out by the backend socket handler (full fanout to all participants)
 3. if ACK times out or socket is disconnected: fall through to `POST /chat/messages` HTTP endpoint
-4. HTTP endpoint persists the message to DB and then does a best-effort fanout to participants' user rooms
+4. HTTP endpoint persists the message to DB and then uses the same realtime delivery helper to fan out + do one short retry + preserve pending delivery state
 
 After either path succeeds, the sender calls:
 
 - `loadMessages(conversationId)` — fetches latest messages from DB to ensure local state includes the server-generated message
 - `loadConversations()` — refreshes conversation list for updated last message and unread counts
 
-### 9.3 HTTP fallback fanout behavior
+### 9.3 Delivery ACK + hybrid retry/replay behavior
 
-The HTTP `POST /chat/messages` route writes to DB, then runs a best-effort user-room fanout. This means:
+Recipient delivery is tracked separately from sender persistence ACK:
 
-- if fanout succeeds, recipients get a normal real-time `message` push
-- if fanout fails, the write still succeeds and recipients will still catch up via reconnect/load sync
-- retries with the same `clientMessageId` are idempotent at DB level; duplicate rows are not created
+1. sender receives `send_ack` after the message is persisted
+2. recipient receives `message { message, delivery }`
+3. recipient emits `message_delivery_ack`
+4. backend marks that `(messageId, recipientId)` delivery row as `delivered`
+5. if some recipients are still `pending`, backend performs one short retry for that message
+6. if some recipients remain `pending` after the short retry, backend keeps those delivery rows unchanged
+7. when the receiver reconnects or opens/subscribes to a conversation, backend replays pending messages for that receiver
+8. both retries and replays only target deliveries whose rows are still `pending`
+9. activity-triggered replays are coalesced per recipient so repeated triggers on the same node do not cause replay storms
 
-This keeps HTTP fallback reliable for persistence while preserving real-time behavior whenever socket delivery is available.
+This gives the system a hybrid at-least-once style recovery path: one quick retry for transient loss plus activity-driven replay for longer gaps.
 
 ### 9.4 Reconnect sync
 
@@ -697,6 +781,8 @@ When the socket reconnects after a disconnection, `ChatContext` runs a full sync
 
 1. `loadConversations()` — fetches the latest conversation list from DB
 2. for each conversation, `loadMessages(conversationId)` — fetches messages and merges them into local state
+
+At the same time, backend socket connect logic can replay pending deliveries for that user, and `presence_subscribe` can replay pending deliveries for the active conversation if anything remains pending after the short retry.
 
 This closes the gap for any messages missed during the disconnection window.
 
@@ -809,6 +895,7 @@ Quick mental model:
 Client -> Server:
 
 - `send_message`
+- `message_delivery_ack`
 - `typing`
 - `presence_subscribe`
 - `withdraw_message`
@@ -824,6 +911,22 @@ Recommended frontend handling:
 
 - treat socket events as immediate UI updates
 - run REST/message sync on reconnect for eventual consistency
+
+Recommended payloads:
+
+- `send_message`
+  - `{ conversationId, type, content | mediaObjectKey, clientMessageId }`
+- `message_delivery_ack`
+  - `{ conversationId, messageId }`
+  - sent by the recipient after a `message` event is received
+  - current server handler validates membership and acknowledges the ACK event itself; delivery-state mutation is handled separately
+- `message`
+  - `{ message, delivery }`
+  - `delivery = { conversationId, messageId }`
+  - `delivery` carries the stable identifiers the recipient uses when emitting `message_delivery_ack`
+- `send_ack`
+  - `{ clientMessageId, messageId }`
+  - emitted back to the sender after the server persists the message
 
 ---
 

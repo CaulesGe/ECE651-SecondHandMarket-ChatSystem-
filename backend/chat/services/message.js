@@ -21,6 +21,30 @@ const ALLOWED_TYPES = new Set(["text", "image", "video"]);
 // Basic object-key validation for media messages.
 const isValidObjectKey = (value) => typeof value === "string" && value.trim().length > 0;
 
+// create the pending deliveries for the message  
+// uses tx because it is part of the transaction
+// tx is the transaction object. If transaction fails, all changes are rolled back.
+const createPendingDeliveries = async (tx, { conversationId, messageId, senderId }) => {
+  if (!conversationId || !messageId || !senderId) return;
+
+  const recipients = await tx.conversationParticipant.findMany({
+    where: {
+      conversationId,
+      userId: { not: senderId }
+    },
+    select: { userId: true }
+  });
+  if (!recipients.length) return;
+
+  await tx.messageDelivery.createMany({
+    data: recipients.map(({ userId }) => ({
+      messageId,
+      recipientId: userId,
+      status: "pending"
+    }))
+  });
+};
+
 // invalidate the cached conversations and messages for the conversation because a new message was sent or a message was withdrawn
 const invalidateConversationAndMessageCaches = async (conversationId) => {
   if (!conversationId) return;
@@ -95,22 +119,33 @@ export const sendMessage = async ({
   const safeClientMessageId = clientMessageId || uuidv4();
 
   try {
-    // Create message; unique constraint prevents duplicates.
-    const message = await prisma.message.create({
-      data: {
+    // use transaction to create the message and the pending deliveries for atomicity
+    const { message } = await prisma.$transaction(async (tx) => {
+      // Create message; unique constraint prevents duplicates.
+      const createdMessage = await tx.message.create({
+        data: {
+          conversationId,
+          senderId,
+          type: normalized.type,
+          content: normalized.content,
+          mediaObjectKey: normalized.mediaObjectKey,
+          clientMessageId: safeClientMessageId
+        }
+      });
+      // create the pending deliveries for the message
+      await createPendingDeliveries(tx, {
         conversationId,
-        senderId,
-        type: normalized.type,
-        content: normalized.content,
-        mediaObjectKey: normalized.mediaObjectKey,
-        clientMessageId: safeClientMessageId
-      }
-    });
+        messageId: createdMessage.id,
+        senderId
+      });
 
-    // Touch conversation updatedAt for ordering.
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() }
+      // Touch conversation updatedAt for ordering.
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() }
+      });
+
+      return { message: createdMessage };
     });
     // Keep message send latency bounded even if Redis/cache is unstable.
     invalidateCachesBestEffort(conversationId);
@@ -124,6 +159,97 @@ export const sendMessage = async ({
     if (existing) return existing;
     throw error;
   }
+};
+
+export const markMessageDeliveryDelivered = async ({
+  conversationId,
+  messageId,
+  recipientId
+}) => {
+  if (!conversationId || !messageId || !recipientId) {
+    throw new Error("Missing conversationId, messageId, or recipientId");
+  }
+  // check if the delivery record exists
+  const existingDelivery = await prisma.messageDelivery.findUnique({
+    where: {
+      messageId_recipientId: {
+        messageId,
+        recipientId
+      }
+    },
+    include: {
+      message: {
+        select: {
+          conversationId: true
+        }
+      }
+    }
+  });
+  if (!existingDelivery) {
+    throw new Error("Delivery record not found");
+  }
+  if (existingDelivery.message?.conversationId !== conversationId) {
+    throw new Error("Message does not belong to the conversation");
+  }
+  if (existingDelivery.status === "delivered") {
+    return existingDelivery;
+  }
+
+  return prisma.messageDelivery.update({
+    where: {
+      messageId_recipientId: {
+        messageId,
+        recipientId
+      }
+    },
+    data: {
+      status: "delivered",
+      deliveredAt: new Date()
+    }
+  });
+};
+
+export const listPendingMessageDeliveryRecipientIds = async ({ messageId }) => {
+  if (!messageId) return [];
+
+  const deliveries = await prisma.messageDelivery.findMany({
+    where: {
+      messageId,
+      status: "pending"
+    },
+    select: {
+      recipientId: true
+    }
+  });
+  return deliveries.map((delivery) => delivery.recipientId);
+};
+
+export const listPendingMessagesForRecipient = async ({
+  recipientId,
+  conversationId = null
+}) => {
+  if (!recipientId) return [];
+
+  const deliveries = await prisma.messageDelivery.findMany({
+    where: {
+      recipientId,
+      status: "pending",
+      ...(conversationId
+        ? { message: { conversationId } }
+        : {})
+    },
+    include: {
+      message: true
+    },
+    orderBy: {
+      message: {
+        createdAt: "asc"
+      }
+    }
+  });
+  return deliveries
+    .map((delivery) => delivery.message)
+    .filter(Boolean);
 };
 
 // Withdraw a sent message if sender requests within the allowed time window.

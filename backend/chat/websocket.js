@@ -3,7 +3,13 @@ import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { PrismaClient } from "@prisma/client";
 import { authenticateSocket } from "./auth.js";
-import { sendMessage, withdrawMessage } from "./services/message.js";
+import {
+  listPendingMessageDeliveryRecipientIds,
+  listPendingMessagesForRecipient,
+  markMessageDeliveryDelivered,
+  sendMessage,
+  withdrawMessage
+} from "./services/message.js";
 import { getRedisClient, isRedisAvailable } from "../utils/redis.js";
 
 // Track connected sockets per user for routing.
@@ -14,6 +20,9 @@ const prisma = new PrismaClient();
 const PRESENCE_TTL_SECONDS = 45; // time for the presence to be considered expired
 const PRESENCE_HEARTBEAT_MS = 15000; // time for the presence heartbeat to be considered expired
 const TYPING_TTL_SECONDS = 6; // time for the typing to be considered expired
+const MESSAGE_DELIVERY_RETRY_DELAY_MS = 2000;
+const MESSAGE_DELIVERY_REPLAY_COOLDOWN_MS = 3000;
+const replayStateByRecipient = new Map();
 
 // get the presence key for the user
 const getPresenceKey = (userId) => `chat:presence:${userId}`;
@@ -25,12 +34,133 @@ const getRedisIfAvailable = () => {
   if (!isRedisAvailable()) return null;
   return getRedisClient() || null;
 };
+
 const getLocalPresenceByUserIds = (userIds) => userIds.reduce((acc, userId) => {
   acc[userId] = Boolean(userSockets.get(userId)?.size);
   return acc;
 }, {});
 const reply = (callback, payload) => {
   if (typeof callback === "function") callback(payload);
+};
+
+// Keep the socket event contract explicit: UI data lives under `message`,
+// while delivery ACK identifiers live under `delivery`.
+const buildMessageEventPayload = (message) => ({
+  message,
+  delivery: message?.id && message?.conversationId
+    ? {
+        messageId: message.id,
+        conversationId: message.conversationId
+      }
+    : null
+});
+
+// Emit one normalized `message` socket payload to a unique set of users.
+const emitMessagePayloadToUsers = (userIds, message, emitFn = emitToUser) => {
+  const targetUserIds = [...new Set(Array.from(userIds || []).filter(Boolean))];
+  if (targetUserIds.length === 0) return 0;
+
+  const payload = buildMessageEventPayload(message);
+  targetUserIds.forEach((targetUserId) => {
+    emitFn(targetUserId, "message", payload);
+  });
+  return targetUserIds.length;
+};
+
+// Initial realtime fanout uses conversation membership plus any backward-compatible
+// explicit recipient passed by older senders.
+const emitMessageToConversationParticipants = async ({ conversationId, message, recipientId = null }) => {
+  const participantUserIds = await getConversationParticipantUserIds(conversationId || message?.conversationId);
+  const targetUserIds = new Set(participantUserIds);
+  if (recipientId) {
+    targetUserIds.add(recipientId);
+  }
+  return emitMessagePayloadToUsers(targetUserIds, message);
+};
+
+// Replay pending deliveries when the receiver becomes active again, such as
+// socket connect or opening/subscribing to a conversation.
+export const replayPendingDeliveriesForRecipientNow = async ({
+  recipientId,
+  conversationId = null,
+  emitFn = emitToUser
+}) => {
+  if (!recipientId) return 0;
+
+  const now = Date.now();
+  const replayState = replayStateByRecipient.get(recipientId);
+  // make sure the replay is not in flight and the cooldown period has passed
+  if (replayState?.inFlight) return 0;
+  if (replayState?.lastReplayAt && now - replayState.lastReplayAt < MESSAGE_DELIVERY_REPLAY_COOLDOWN_MS) {
+    return 0;
+  }
+
+  replayStateByRecipient.set(recipientId, {
+    inFlight: true,
+    lastReplayAt: replayState?.lastReplayAt || 0
+  });
+
+  try {
+    const pendingMessages = await listPendingMessagesForRecipient({
+      recipientId,
+      conversationId
+    });
+    if (!pendingMessages.length) {
+      return 0;
+    }
+
+    pendingMessages.forEach((message) => {
+      emitFn(recipientId, "message", buildMessageEventPayload(message));
+    });
+    return pendingMessages.length;
+  } finally {
+    replayStateByRecipient.set(recipientId, {
+      inFlight: false,
+      lastReplayAt: Date.now()
+    });
+  }
+};
+
+// One short retry helps with brief packet loss or tab wakeups before we fall
+// back to the longer-tail activity-driven replay path.
+export const retryPendingMessageDeliveryNow = async ({ message, emitFn = emitToUser }) => {
+  if (!message?.id) return 0;
+
+  const pendingRecipientIds = await listPendingMessageDeliveryRecipientIds({
+    messageId: message.id
+  });
+  return emitMessagePayloadToUsers(pendingRecipientIds, message, emitFn);
+};
+
+const scheduleSinglePendingMessageRetry = (message) => {
+  if (!message?.id) return;
+
+  const retryTimer = setTimeout(() => {
+    retryPendingMessageDeliveryNow({ message }).catch((error) => {
+      console.warn("[chat-socket] failed to retry pending message delivery:", error?.message || error);
+    });
+  }, MESSAGE_DELIVERY_RETRY_DELAY_MS);
+  if (typeof retryTimer?.unref === "function") {
+    retryTimer.unref();
+  }
+};
+
+// Shared send path for both socket-originated and HTTP-originated messages:
+// emit immediately, perform one short retry if recipients are still pending,
+// then rely on receiver activity for any remaining replay.
+export const deliverMessageRealtime = async ({ conversationId, message, recipientId = null }) => {
+  const emittedCount = await emitMessageToConversationParticipants({
+    conversationId,
+    message,
+    recipientId
+  });
+  const pendingRecipientIds = await listPendingMessageDeliveryRecipientIds({
+    messageId: message?.id
+  });
+  if (pendingRecipientIds.length > 0) {
+    scheduleSinglePendingMessageRetry(message);
+  }
+  return emittedCount;
 };
 
 // Add a socket to the in-memory user map.
@@ -276,6 +406,10 @@ export const initChatSocket = (httpServer) => {
     addUserSocket(userId, socket);
     // join the user to the room in the Redis
     socket.join(getUserRoom(userId));
+    
+    replayPendingDeliveriesForRecipientNow({ recipientId: userId }).catch((error) => {
+      console.warn("[chat-socket] failed to replay pending deliveries on connect:", error?.message || error);
+    });
     // publish the presence heartbeat
     publishPresenceHeartbeat(userId).catch(() => {});
     emitPresenceChangedToPeers(userId, true).catch(() => {});
@@ -285,19 +419,23 @@ export const initChatSocket = (httpServer) => {
     // swallowed by the Redis adapter in some edge cases).
     (async () => {
       try {
+        // get the conversations the user is a participant of
         const memberships = await prisma.conversationParticipant.findMany({
           where: { userId },
           select: { conversationId: true }
         });
         const conversationIds = [...new Set(memberships.map((m) => m.conversationId))];
         if (conversationIds.length === 0) return;
+        // get the peers of the user
         const peers = await prisma.conversationParticipant.findMany({
           where: { conversationId: { in: conversationIds }, userId: { not: userId } },
           select: { userId: true }
         });
         const peerUserIds = [...new Set(peers.map((p) => p.userId))];
         if (peerUserIds.length === 0) return;
+        // get the presence of the peers
         const presenceMap = await getPresenceByUserIds(peerUserIds);
+        // emit the presence status of peers in selected conversations to the new user
         for (const [peerUserId, isOnline] of Object.entries(presenceMap)) {
           socket.emit("presence_changed", { userId: peerUserId, isOnline: Boolean(isOnline) });
         }
@@ -323,6 +461,10 @@ export const initChatSocket = (httpServer) => {
         const participantUserIds = await getConversationParticipantUserIds(conversationId);
         const presenceByUserId = await getPresenceByUserIds(participantUserIds);
         const typingUserIds = await listTypingUsers(conversationId);
+        await replayPendingDeliveriesForRecipientNow({
+          recipientId: userId,
+          conversationId
+        });
         const response = {
           conversationId,
           presenceByUserId,
@@ -398,15 +540,10 @@ export const initChatSocket = (httpServer) => {
         }
 
         // Fan out to all participants so sender's other tabs and recipients stay in sync.
-        const participantUserIds = await getConversationParticipantUserIds(payload.conversationId);
-        const targetUserIds = new Set(participantUserIds);
-        // Keep backward compatibility if recipientId is provided by older clients.
-        if (payload.recipientId) {
-          targetUserIds.add(payload.recipientId);
-        }
-        // send the message to the participants
-        targetUserIds.forEach((targetUserId) => {
-          emitToUser(targetUserId, "message", { message });
+        await deliverMessageRealtime({
+          conversationId: payload.conversationId,
+          message,
+          recipientId: payload.recipientId
         });
 
         // Typing state updates are conversation-scoped and should only go to that conversation's participants.
@@ -428,9 +565,9 @@ export const initChatSocket = (httpServer) => {
           userId
         });
 
-        const targetUserIds = new Set(await getConversationParticipantUserIds(message.conversationId));
-        targetUserIds.forEach((targetUserId) => {
-          emitToUser(targetUserId, "message", { message });
+        await emitMessageToConversationParticipants({
+          conversationId: message.conversationId,
+          message
         });
 
         reply(callback, { messageId: message.id });
@@ -439,9 +576,33 @@ export const initChatSocket = (httpServer) => {
       }
     });
 
-    // Optional client acknowledgement handler.
-    socket.on("send_ack", () => {
-      // Reserved for future delivery tracking.
+    // Handle message delivery acknowledgement event.
+    socket.on("message_delivery_ack", async (payload = {}, callback) => {
+      try {
+        const conversationId = payload?.conversationId;
+        const messageId = payload?.messageId;
+        if (!conversationId) throw new Error("conversationId is required");
+        if (!messageId) throw new Error("messageId is required");
+
+        const allowed = await isConversationParticipant(conversationId, userId);
+        if (!allowed) throw new Error("Forbidden");
+
+        const delivery = await markMessageDeliveryDelivered({
+          conversationId,
+          messageId,
+          recipientId: userId
+        });
+
+        reply(callback, {
+          ok: true,
+          conversationId,
+          messageId,
+          status: delivery.status,
+          deliveredAt: delivery.deliveredAt
+        });
+      } catch (error) {
+        reply(callback, { error: error.message || "Failed to acknowledge message delivery" });
+      }
     });
 
     // Clean up on disconnect.

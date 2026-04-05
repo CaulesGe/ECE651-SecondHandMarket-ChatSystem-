@@ -49,6 +49,7 @@ export default function useChatPresenceTyping({
 
   useEffect(() => {
     if (!selectedChat || !socketConnected) return;
+    // request the presence for the selected chat
     requestConversationPresence(selectedChat).catch(() => {});
   }, [selectedChat, socketConnected, requestConversationPresence]);
 

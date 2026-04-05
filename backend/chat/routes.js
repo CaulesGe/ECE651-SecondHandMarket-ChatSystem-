@@ -11,6 +11,7 @@ import {
   markConversationRead
 } from "./services/conversation.js";
 import { sendMessage, getMessages, withdrawMessage } from "./services/message.js";
+import { deliverMessageRealtime } from "./websocket.js";
 
 const prisma = new PrismaClient();
 const CHAT_MEDIA_MAX_SIZE_BYTES = 100 * 1024 * 1024;
@@ -206,6 +207,11 @@ export const createChatRouter = () => {
         content,
         mediaObjectKey,
         clientMessageId
+      });
+
+      await deliverMessageRealtime({
+        conversationId,
+        message
       });
 
       return res.status(201).json({ message });

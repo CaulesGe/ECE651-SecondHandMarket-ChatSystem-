@@ -42,6 +42,16 @@ export function ChatProvider({ children }) {
     }
   }, []);
 
+  const acknowledgeMessageDelivery = useCallback(async ({ conversationId, messageId }) => {
+    if (!conversationId || !messageId) return;
+    const socket = socketRef.current;
+    if (!socket?.connected) return;
+
+    await new Promise((resolve) => {
+      socket.emit('message_delivery_ack', { conversationId, messageId }, () => resolve());
+    });
+  }, []);
+
    // Load all conversations for the authenticated user.
   const loadConversations = useCallback(async () => {
     if (!isLoggedIn || !user?.id) return [];
@@ -343,12 +353,24 @@ export function ChatProvider({ children }) {
       setSocketConnected(false);
     });
 
-    socket.on('message', ({ message }) => {
+    socket.on('message', ({ message, delivery }) => {
       if (!message?.conversationId) return;
       setMessagesByConversation((prev) => ({
         ...prev,
         [message.conversationId]: mergeMessages(prev[message.conversationId], [message])
       }));
+      if (
+        delivery?.conversationId
+        && delivery?.messageId
+        && message.senderId
+        && message.senderId !== user?.id
+        && !message.isWithdrawn
+      ) {
+        acknowledgeMessageDelivery({
+          conversationId: delivery.conversationId,
+          messageId: delivery.messageId
+        }).catch(() => {});
+      }
       // Refresh list so last message and unread counts stay current.
       loadConversations().catch(() => {});
     });
@@ -412,7 +434,7 @@ export function ChatProvider({ children }) {
       socketRef.current = null;
       setSocketConnected(false);
     };
-  }, [isLoggedIn, user?.id, user?.role, user?.name, user?.email, loadConversations, loadMessages, mergeMessages, socketServerUrl]);
+  }, [acknowledgeMessageDelivery, isLoggedIn, user?.id, user?.role, user?.name, user?.email, loadConversations, loadMessages, mergeMessages, socketServerUrl]);
 
   const chatCount = useMemo(
     () => conversations.reduce((sum, convo) => sum + Number(convo.unreadCount || 0), 0),
