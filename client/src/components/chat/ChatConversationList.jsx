@@ -13,12 +13,14 @@ const ChatConversationListItem = memo(function ChatConversationListItem({
   )?.user;
   const title = otherParticipant?.name || `Conversation ${conversation.id.slice(0, 6)}`;
   const lastMessage = conversation.lastMessage || null;
+  const unreadCount = Number(conversation.unreadCount || 0);
+  const hasUnread = unreadCount > 0;
 
   return (
     <button
       key={conversation.id}
       data-testid={`chat-item-${conversation.id}`}
-      className={`chat-item ${isSelected ? 'active' : ''}`}
+      className={`chat-item ${isSelected ? 'active' : ''} ${hasUnread ? 'chat-item-unread' : ''}`}
       onClick={() => onSelectChat(conversation.id)}
       onContextMenu={(e) => onConversationContextMenu(e, conversation)}
     >
@@ -29,7 +31,14 @@ const ChatConversationListItem = memo(function ChatConversationListItem({
       </div>
       <div className="chat-item-content">
         <div className="chat-item-title">{title}</div>
-        <div className="chat-item-preview">{getMessagePreview(lastMessage)}</div>
+        <div className="chat-item-meta">
+          <div className="chat-item-preview">{getMessagePreview(lastMessage)}</div>
+          {hasUnread ? (
+            <span className="chat-item-unread-badge" aria-label={`${unreadCount} unread messages`}>
+              {unreadCount}
+            </span>
+          ) : null}
+        </div>
         <div className="chat-item-time">{formatListTime(lastMessage?.createdAt || conversation.updatedAt)}</div>
       </div>
     </button>

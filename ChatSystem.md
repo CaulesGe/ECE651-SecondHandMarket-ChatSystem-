@@ -339,23 +339,27 @@ sequenceDiagram
 ```
 
 ```mermaid
-flowchart TD
-    S1[Client A emit send_message] --> S2[Server validates membership]
-    S2 --> S3[Persist message row]
-    S3 --> S4[Create pending MessageDelivery rows]
-    S4 --> S5[Emit send_ack to sender]
-    S5 --> S6[Emit message payload to participant user rooms]
-    S6 --> S7[Recipient client receives message]
-    S7 --> S8[Recipient emits message_delivery_ack]
-    S8 --> S9[Server marks recipient delivery row delivered]
-    S6 --> S10{Pending recipients remain?}
-    S10 -- yes --> S11[Schedule one short retry]
-    S11 --> S12{Still pending after retry?}
-    S12 -- yes --> S13[Wait for receiver activity]
-    S13 --> S14[Replay pending messages on connect or conversation open]
-    S14 --> S10
-    S12 -- no --> S15[Stop retry/replay path]
-    S10 -- no --> S15
+  flowchart TD
+    subgraph connect ["Connect"]
+      C1[User connects socket] --> C2[Set Redis presence TTL]
+      C2 --> C3[Start heartbeat refresh]
+      C3 --> C4[Emit presence_changed online to peers]
+      C4 --> C5[Push current peer status to new user]
+    end
+
+    subgraph disconnect ["Disconnect"]
+      D1[User disconnects] --> D2[Remove local socket]
+      D2 --> D3{Any sockets left?}
+      D3 -->|s19| D4[Keep user online]
+      D3 -->|s20| D5[Clear typing state]
+      D5 --> D6[Emit presence_changed offline to peers]
+    end
+
+    subgraph snapshot ["Snapshot recovery"]
+      S1[Conversation open / reconnect / focus] --> S2[Client emits presence_subscribe]
+      S2 --> S3[Backend reads peer status from Redis]
+      S3 --> S4[Returns presence snapshot + typing users]
+    end
 ```
 
 ---

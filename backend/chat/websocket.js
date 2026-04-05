@@ -461,6 +461,7 @@ export const initChatSocket = (httpServer) => {
         const participantUserIds = await getConversationParticipantUserIds(conversationId);
         const presenceByUserId = await getPresenceByUserIds(participantUserIds);
         const typingUserIds = await listTypingUsers(conversationId);
+        // replay the pending deliveries for the recipient
         await replayPendingDeliveriesForRecipientNow({
           recipientId: userId,
           conversationId
