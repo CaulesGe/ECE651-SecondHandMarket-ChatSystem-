@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ChatComposer from '../components/chat/ChatComposer';
 import ChatConversationList from '../components/chat/ChatConversationList';
+import ChatConversationMenu from '../components/chat/ChatConversationMenu';
 import ChatMessageList from '../components/chat/ChatMessageList';
 import ChatThreadHeader from '../components/chat/ChatThreadHeader';
 import ChatWithdrawMenu from '../components/chat/ChatWithdrawMenu';
@@ -20,6 +21,7 @@ export default function ChatPage() {
     conversations,
     loadingConversations,
     socketConnected,
+    hideConversation,
     loadConversations,
     loadMessages,
     sendMessageRealtime,
@@ -38,6 +40,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [composerError, setComposerError] = useState('');
   const [dragOverComposer, setDragOverComposer] = useState(false);
+  const [conversationContextMenu, setConversationContextMenu] = useState(null);
   const [withdrawContextMenu, setWithdrawContextMenu] = useState(null);
   
   // refs for the file input and queued media uploads.
@@ -73,6 +76,8 @@ export default function ChatPage() {
       !conversations.some((c) => c.id === selectedChat)
     ) {
       setSelectedChat(conversations[0].id);
+    } else if (selectedChat && conversations.length === 0) {
+      setSelectedChat('');
     }
   }, [conversations, selectedChat]);
 
@@ -339,16 +344,44 @@ export default function ChatPage() {
     await handleWithdrawMessage(selectedMessage);
   };
 
+  const handleConversationContextMenu = useCallback((e, conversation) => {
+    if (!conversation?.id) {
+      setConversationContextMenu(null);
+      return;
+    }
+    e.preventDefault();
+    setConversationContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      conversation
+    });
+  }, []);
+
+  const handleDeleteConversationFromList = useCallback(async () => {
+    const selectedConversationId = conversationContextMenu?.conversation?.id;
+    setConversationContextMenu(null);
+    if (!selectedConversationId) return;
+    try {
+      await hideConversation(selectedConversationId);
+    } catch (error) {
+      setComposerError(error?.message || 'Failed to hide conversation.');
+    }
+  }, [conversationContextMenu, hideConversation]);
+
   useEffect(() => {
     pendingFilesRef.current = pendingFiles;
   }, [pendingFiles]);
 
   useEffect(() => {
-    if (!withdrawContextMenu) return undefined;
-    const handleGlobalDismiss = () => setWithdrawContextMenu(null);
+    if (!withdrawContextMenu && !conversationContextMenu) return undefined;
+    const handleGlobalDismiss = () => {
+      setWithdrawContextMenu(null);
+      setConversationContextMenu(null);
+    };
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
         setWithdrawContextMenu(null);
+        setConversationContextMenu(null);
       }
     };
     window.addEventListener('click', handleGlobalDismiss);
@@ -361,7 +394,7 @@ export default function ChatPage() {
       window.removeEventListener('resize', handleGlobalDismiss);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [withdrawContextMenu]);
+  }, [conversationContextMenu, withdrawContextMenu]);
 
   // cleanup pending files when component unmounts
   useEffect(() => () => {
@@ -382,6 +415,7 @@ export default function ChatPage() {
             conversations={conversations}
             currentUserId={user?.id}
             loadingConversations={loadingConversations}
+            onConversationContextMenu={handleConversationContextMenu}
             onSelectChat={setSelectedChat}
             selectedChat={selectedChat}
             socketConnected={socketConnected}
@@ -410,6 +444,10 @@ export default function ChatPage() {
               signedMediaUrls={signedMediaUrls}
               userId={user?.id}
               visibleVideoMessageIds={visibleVideoMessageIds}
+            />
+            <ChatConversationMenu
+              onDeleteConversation={handleDeleteConversationFromList}
+              position={conversationContextMenu}
             />
             <ChatWithdrawMenu
               onWithdraw={handleWithdrawFromContextMenu}

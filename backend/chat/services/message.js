@@ -45,6 +45,18 @@ const createPendingDeliveries = async (tx, { conversationId, messageId, senderId
   });
 };
 
+const unhideConversationParticipants = async (tx, conversationId) => {
+  if (!conversationId) return;
+
+  await tx.conversationParticipant.updateMany({
+    where: {
+      conversationId,
+      hiddenAt: { not: null }
+    },
+    data: { hiddenAt: null }
+  });
+};
+
 // Allocate the next per-conversation sequence number inside the same transaction
 // that creates the message so ordering stays atomic.
 const allocateNextSequenceNumber = async (tx, conversationId) => {
@@ -139,6 +151,7 @@ export const sendMessage = async ({
     // use transaction to create the message and the pending deliveries for atomicity
     const { message } = await prisma.$transaction(async (tx) => {
       const sequenceNumber = await allocateNextSequenceNumber(tx, conversationId);
+      await unhideConversationParticipants(tx, conversationId);
 
       // Create message; unique constraint prevents duplicates.
       const createdMessage = await tx.message.create({

@@ -13,6 +13,13 @@ const prisma = new PrismaClient();
 
 // Normalize undefined to null so Prisma filters match optional fields.
 const normalizeContext = (value) => (value === undefined ? null : value);
+const conversationWithParticipantsInclude = {
+  participants: {
+    include: {
+      user: { select: { id: true, name: true, email: true, role: true } }
+    }
+  }
+};
 
 // Build a context filter for (orderId, itemId) scoped conversations.
 const buildContextWhere = (contextOrderId, contextItemId) => ({
@@ -44,17 +51,37 @@ export const createConversation = async ({
         { participants: { some: { userId: otherUserId } } }
       ]
     },
-    include: {
-      participants: {
-        include: {
-          user: { select: { id: true, name: true, email: true, role: true } }
-        }
-      }
-    }
+    include: conversationWithParticipantsInclude
   });
 
-  // Return existing conversation if found.
-  if (existing) return existing;
+  // Reopening an existing hidden conversation should make it visible again for
+  // the requesting user without affecting the other participant's state.
+  if (existing) {
+    const requesterMembership = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: existing.id,
+          userId
+        }
+      },
+      select: { hiddenAt: true }
+    });
+
+    if (requesterMembership?.hiddenAt) {
+      await prisma.conversationParticipant.update({
+        where: {
+          conversationId_userId: {
+            conversationId: existing.id,
+            userId
+          }
+        },
+        data: { hiddenAt: null }
+      });
+      await invalidateConversationCachesForUsers([userId]);
+    }
+
+    return existing;
+  }
 
   // Create a new conversation with both participants.
   const createdConversation = await prisma.conversation.create({
@@ -64,13 +91,7 @@ export const createConversation = async ({
         create: [{ userId }, { userId: otherUserId }]
       }
     },
-    include: {
-      participants: {
-        include: {
-          user: { select: { id: true, name: true, email: true, role: true } }
-        }
-      }
-    }
+    include: conversationWithParticipantsInclude
   });
   // invalidate the cached conversations for the users because a new conversation was created
   const participantUserIds = (createdConversation?.participants || []).map((participant) => participant.userId);
@@ -143,12 +164,38 @@ export const markConversationRead = async ({
   return state;
 };
 
+export const hideConversationForUser = async ({ conversationId, userId }) => {
+  if (!conversationId || !userId) {
+    throw new Error("Missing conversationId or userId");
+  }
+
+  const membership = await prisma.conversationParticipant.findUnique({
+    where: {
+      conversationId_userId: { conversationId, userId }
+    },
+    select: { id: true }
+  });
+  if (!membership) {
+    throw new Error("User is not a participant of this conversation");
+  }
+
+  await prisma.conversationParticipant.update({
+    where: {
+      conversationId_userId: { conversationId, userId }
+    },
+    data: { hiddenAt: new Date() }
+  });
+
+  await invalidateConversationCachesForUsers([userId]);
+  return { conversationId };
+};
+
 
 //helper methods
 const loadUserConversationsFromDb = async (userId) => {
   // Load conversations with participants and the latest message.
   const conversations = await prisma.conversation.findMany({
-    where: { participants: { some: { userId } } },
+    where: { participants: { some: { userId, hiddenAt: null } } },
     orderBy: { updatedAt: "desc" },
     include: {
       participants: {

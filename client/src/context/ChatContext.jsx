@@ -17,6 +17,7 @@ export function ChatProvider({ children }) {
   const [presenceByUserId, setPresenceByUserId] = useState({});
   const [typingByConversation, setTypingByConversation] = useState({});
   const socketRef = useRef(null);
+  const conversationsRef = useRef([]);
   const sendPathDebugRef = useRef({
     total: 0,
     socket: 0,
@@ -101,6 +102,10 @@ export function ChatProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  useEffect(() => {
     messagesByConversationRef.current = messagesByConversation;
   }, [messagesByConversation]);
 
@@ -161,7 +166,7 @@ export function ChatProvider({ children }) {
   }, []);
 
   const getLatestLoadedMessageSequenceNumber = useCallback((conversationId) => {
-    const conversationMessages = messagesByConversation[conversationId] || [];
+    const conversationMessages = messagesByConversationRef.current[conversationId] || [];
     // get the latest message sequence number
     for (let index = conversationMessages.length - 1; index >= 0; index -= 1) {
       const sequenceNumber = conversationMessages[index]?.sequenceNumber;
@@ -171,7 +176,7 @@ export function ChatProvider({ children }) {
     }
 
     return null;
-  }, [messagesByConversation]);
+  }, []);
 
 
   // Load messages for one conversation using sequence-number cursors.
@@ -345,12 +350,22 @@ export function ChatProvider({ children }) {
     return api.signChatDownload(objectKey, user);
   }, [isLoggedIn, user]);
 
-  // Mark conversation read at latest message id and refresh unread counts.
   const markAsRead = useCallback(async (conversationId, lastReadMessageId = null) => {
     if (!isLoggedIn || !user?.id || !conversationId) return;
     await api.markAsRead(conversationId, lastReadMessageId, user);
-    await loadConversations();
-  }, [isLoggedIn, user, loadConversations]);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+    );
+  }, [isLoggedIn, user]);
+
+  const hideConversation = useCallback(async (conversationId) => {
+    if (!isLoggedIn || !user?.id || !conversationId) {
+      throw new Error('conversationId is required');
+    }
+
+    await api.hideConversation(conversationId, user);
+    setConversations((prev) => prev.filter((conversation) => conversation.id !== conversationId));
+  }, [isLoggedIn, user]);
 
   // Read from cache (UI helper).
   const getMessagesForConversation = useCallback((conversationId) => (
@@ -459,6 +474,9 @@ export function ChatProvider({ children }) {
 
     socket.on('message', ({ message, delivery }) => {
       if (!message?.conversationId) return;
+      const conversationAlreadyLoaded = conversationsRef.current.some(
+        (conversation) => conversation.id === message.conversationId
+      );
       const messageAlreadyLoaded = Boolean(
         messagesByConversationRef.current[message.conversationId]?.some((item) => item.id === message.id)
       );
@@ -474,6 +492,9 @@ export function ChatProvider({ children }) {
           && !message.isWithdrawn
         )
       });
+      if (!conversationAlreadyLoaded) {
+        loadConversations().catch(() => {});
+      }
       if (
         delivery?.conversationId
         && delivery?.messageId
@@ -587,6 +608,7 @@ export function ChatProvider({ children }) {
       uploadMediaForConversation,
       signMediaDownload,
       markAsRead,
+      hideConversation,
       getMessagesForConversation,
       getSendPathDebug: () => sendPathDebugRef.current,
       requestConversationPresence,

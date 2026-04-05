@@ -299,6 +299,19 @@ export const api = {
     return res.json();
   },
 
+  async hideConversation(conversationId, user) {
+    if (!conversationId) throw new Error('conversationId is required');
+    const res = await fetch(`${CHAT_BASE}/conversations/${conversationId}/hide`, {
+      method: 'POST',
+      headers: getAuthHeaders(user)
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || 'Failed to hide conversation');
+    }
+    return res.json();
+  },
+
   async sendMessage(conversationId, type, content, mediaObjectKey, clientMessageId, user) {
     const res = await fetch(`${CHAT_BASE}/messages`, {
       method: 'POST',

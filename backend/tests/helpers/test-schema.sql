@@ -164,6 +164,7 @@ CREATE TABLE "ConversationParticipant" (
   "conversationId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "joinedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "hiddenAt" DATETIME,
   CONSTRAINT "ConversationParticipant_conversationId_fkey"
     FOREIGN KEY ("conversationId") REFERENCES "Conversation" ("id")
     ON DELETE RESTRICT

@@ -113,6 +113,138 @@ describe("Chat integration", () => {
     expect(conversationCount).toBe(1);
   });
 
+  test("hiding a conversation only removes it for the current user and createConversation reopens it", async () => {
+    const alice = await createUser({
+      id: "u_chat_hide_1",
+      name: "Alice",
+      email: "alice_hide@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_hide_2",
+      name: "Bob",
+      email: "bob_hide@example.com"
+    });
+
+    const created = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = created.body.conversation.id;
+
+    await request(app)
+      .post(`/api/chat/conversations/${conversationId}/hide`)
+      .set(authHeaders(alice))
+      .expect(200);
+
+    const hiddenMembership = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId,
+          userId: alice.id
+        }
+      }
+    });
+    expect(hiddenMembership?.hiddenAt).not.toBeNull();
+
+    const aliceListAfterHide = await request(app)
+      .get("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .expect(200);
+    expect(aliceListAfterHide.body.items).toHaveLength(0);
+
+    const bobListAfterHide = await request(app)
+      .get("/api/chat/conversations")
+      .set(authHeaders(bob))
+      .expect(200);
+    expect(bobListAfterHide.body.items).toHaveLength(1);
+    expect(bobListAfterHide.body.items[0].id).toBe(conversationId);
+
+    const reopened = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    expect(reopened.body.conversation.id).toBe(conversationId);
+
+    const aliceListAfterReopen = await request(app)
+      .get("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .expect(200);
+    expect(aliceListAfterReopen.body.items).toHaveLength(1);
+    expect(aliceListAfterReopen.body.items[0].id).toBe(conversationId);
+
+    const reopenedMembership = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId,
+          userId: alice.id
+        }
+      }
+    });
+    expect(reopenedMembership?.hiddenAt).toBeNull();
+  });
+
+  test("new messages automatically unhide a hidden conversation for the recipient", async () => {
+    const alice = await createUser({
+      id: "u_chat_hide_msg_1",
+      name: "Alice",
+      email: "alice_hide_msg@example.com"
+    });
+    const bob = await createUser({
+      id: "u_chat_hide_msg_2",
+      name: "Bob",
+      email: "bob_hide_msg@example.com"
+    });
+
+    const created = await request(app)
+      .post("/api/chat/conversations")
+      .set(authHeaders(alice))
+      .send({ otherUserId: bob.id })
+      .expect(201);
+    const conversationId = created.body.conversation.id;
+
+    await request(app)
+      .post(`/api/chat/conversations/${conversationId}/hide`)
+      .set(authHeaders(bob))
+      .expect(200);
+
+    const hiddenList = await request(app)
+      .get("/api/chat/conversations")
+      .set(authHeaders(bob))
+      .expect(200);
+    expect(hiddenList.body.items).toHaveLength(0);
+
+    const sent = await request(app)
+      .post("/api/chat/messages")
+      .set(authHeaders(alice))
+      .send({
+        conversationId,
+        type: "text",
+        content: "wake hidden thread",
+        clientMessageId: "cm_hidden_wakeup_1"
+      })
+      .expect(201);
+
+    const bobListAfterMessage = await request(app)
+      .get("/api/chat/conversations")
+      .set(authHeaders(bob))
+      .expect(200);
+    expect(bobListAfterMessage.body.items).toHaveLength(1);
+    expect(bobListAfterMessage.body.items[0].id).toBe(conversationId);
+    expect(bobListAfterMessage.body.items[0].lastMessage?.id).toBe(sent.body.message.id);
+
+    const recipientMembership = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId,
+          userId: bob.id
+        }
+      }
+    });
+    expect(recipientMembership?.hiddenAt).toBeNull();
+  });
+
   test("POST /api/chat/messages sends text and GET /api/chat/messages returns replay-ordered items", async () => {
     const alice = await createUser({
       id: "u_chat_3",

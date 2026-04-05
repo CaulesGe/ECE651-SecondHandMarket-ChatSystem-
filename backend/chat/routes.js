@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   createConversation,
   getUserConversations,
+  hideConversationForUser,
   markConversationRead
 } from "./services/conversation.js";
 import { sendMessage, getMessages, withdrawMessage } from "./services/message.js";
@@ -81,6 +82,19 @@ export const createChatRouter = () => {
       return res.json({ items });
     } catch (error) {
       return res.status(500).json({ message: error.message || "Failed to load conversations" });
+    }
+  });
+
+  // POST /chat/conversations/:id/hide - hide a conversation for the current user only.
+  router.post("/conversations/:id/hide", async (req, res) => {
+    try {
+      const result = await hideConversationForUser({
+        conversationId: req.params.id,
+        userId: req.user.id
+      });
+      return res.json(result);
+    } catch (error) {
+      return res.status(400).json({ message: error.message || "Failed to hide conversation" });
     }
   });
 
