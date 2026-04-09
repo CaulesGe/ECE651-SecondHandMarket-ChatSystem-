@@ -17,6 +17,7 @@ const authHeaders = (user) => ({
   "x-user-email": user.email || ""
 });
 
+// Reset chat-related tables between tests so each scenario starts clean.
 async function resetDb() {
   await prisma.conversationReadState.deleteMany();
   await prisma.messageDelivery.deleteMany();
@@ -30,6 +31,7 @@ async function resetDb() {
   await prisma.user.deleteMany();
 }
 
+// Create a minimal verified user fixture for integration tests.
 async function createUser({
   id,
   name = "Chat User",
@@ -333,6 +335,7 @@ describe("Chat integration", () => {
     expect(beforeCursor.body.items[0].id).toBe(sent1.body.message.id);
   });
 
+  // Two sends racing at the same time should still get unique, monotonic sequence numbers.
   test("concurrent sends allocate unique sequence numbers and replay in sequence order", async () => {
     const alice = await createUser({
       id: "u_chat_concurrent_1",
@@ -507,6 +510,7 @@ describe("Chat integration", () => {
     expect(afterAck?.deliveredAt).not.toBeNull();
   });
 
+  // Replay should only re-emit messages whose delivery rows are still pending.
   test("activity replay helper only re-emits to recipients whose deliveries are still pending", async () => {
     const alice = await createUser({
       id: "u_chat_retry_1",
@@ -567,6 +571,7 @@ describe("Chat integration", () => {
     expect(emitted).toHaveLength(1);
   });
 
+  // Immediate duplicate replay triggers should be coalesced for the same recipient.
   test("activity replay helper coalesces immediate repeated triggers for the same recipient", async () => {
     const alice = await createUser({
       id: "u_chat_replay_coalesce_1",
@@ -617,6 +622,7 @@ describe("Chat integration", () => {
     expect(emitted[0].payload.delivery.messageId).toBe(sent.body.message.id);
   });
 
+  // Reconnect-style replay should recover pending deliveries across all conversations for that user.
   test("reconnect-style replay re-emits all pending messages for a recipient across conversations", async () => {
     const alice = await createUser({
       id: "u_chat_reconnect_1",
@@ -686,6 +692,7 @@ describe("Chat integration", () => {
     );
   });
 
+  // Presence-driven replay can be scoped to just the currently opened conversation.
   test("activity replay helper can scope pending replay to one active conversation", async () => {
     const alice = await createUser({
       id: "u_chat_presence_replay_1",
@@ -752,6 +759,7 @@ describe("Chat integration", () => {
     expect(emitted[0].payload.delivery.conversationId).toBe(convoWithAlice.body.conversation.id);
   });
 
+  // The one-shot retry helper should stop once the message is already marked delivered.
   test("single retry helper only re-emits recipients whose message deliveries are still pending", async () => {
     const alice = await createUser({
       id: "u_chat_retry_msg_1",
@@ -811,6 +819,7 @@ describe("Chat integration", () => {
     expect(emitted).toHaveLength(1);
   });
 
+  // Read state is stored in the backend and drives unread-count aggregation in the conversation list.
   test("GET /api/chat/conversations includes unreadCount and mark-read resets it", async () => {
     const alice = await createUser({
       id: "u_chat_8",
@@ -864,6 +873,7 @@ describe("Chat integration", () => {
     expect(convoListAfter.body.items[0].unreadCount).toBe(0);
   });
 
+  // Withdrawal is allowed only inside the configured time window for the original sender.
   test("POST /api/chat/messages/:id/withdraw allows sender within window and rejects after expiry", async () => {
     const alice = await createUser({
       id: "u_chat_10",
