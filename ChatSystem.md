@@ -301,6 +301,67 @@ Replay coalescing / rate limiting:
   - followed immediately by `presence_subscribe`
   - plus multiple tabs reconnecting at nearly the same time
 
+## 3.3 Pending-delivery cache
+
+This system now includes a local pending-delivery replay cache in `backend/chat/realtime/delivery.js`.
+
+Why it exists:
+
+- to avoid unnecessary DB reads when the same backend node already knows which canonical message payloads are still pending for a recipient
+- to support a same-node replay fast path for reconnect / conversation activity / typing activity
+- to keep DB `MessageDelivery` rows as the source of truth while making repeated replay triggers cheaper
+
+Local pending-delivery cache behavior:
+
+- `backend/chat/realtime/delivery.js` keeps a process-local in-memory cache keyed by recipient, then conversation, then message id
+- the cache is an optimization, not the source of truth; DB `MessageDelivery` rows remain authoritative
+- connect / `presence_subscribe` replay can use cached payloads first and fall back to DB reads when cache is empty
+- when a user starts typing in a conversation, the backend checks whether this node has cached pending messages for that same recipient/conversation
+- if yes, it can trigger a same-node replay fast path without first doing another DB read
+- this typing-triggered replay is intentionally best-effort and node-local
+- cache entries are removed on delivery ACK, refreshed on withdraw, and cleared when the user's last socket disconnects from that node
+
+Why the cache is seeded before the first retry:
+
+- after the initial fanout, the backend already queries DB once to learn which recipients are still `pending`
+- seeding the cache from that same result is cheap because it does not require an extra DB read
+- this covers the small window before the retry timer fires, so if the recipient reconnects, opens the conversation, or starts typing on the same node during that window, replay can use cached payloads immediately
+- when the retry runs, the backend queries DB again and refreshes the cache so ACKed recipients are removed and only still-pending recipients remain
+- if the system initialized the cache only after the first retry, the design would be simpler, but it would lose that early same-node fast path during the pre-retry window
+
+Limitations:
+
+- it is local memory only, not Redis-backed
+- if the user reconnects or becomes active on another node, that other node may not have the cache
+- correctness still comes from DB-backed replay and frontend reconnect resync, not from the cache itself
+
+Cache workflow:
+
+```mermaid
+flowchart TD
+  A[Message persisted and fanout attempted] --> B[Query DB for still-pending recipients]
+  B --> C[Sync local pending-message cache]
+  C --> D{Pending recipients remain?}
+  D -->|yes| E[Schedule one short retry]
+  D -->|no| F[No cache work needed]
+
+  E --> G[Retry runs]
+  G --> H[Query DB for still-pending recipients again]
+  H --> I[Refresh cache so only still-pending entries remain]
+
+  I --> J{Receiver becomes active on same node?}
+  J -->|connect or presence_subscribe| K[Replay from cache first, then DB fallback if needed]
+  J -->|fresh typing start in same conversation| L[Replay fast path if cached entries exist]
+
+  K --> M[Recipient receives message and sends message_delivery_ack]
+  L --> M
+  M --> N[Mark delivery row delivered in DB]
+  N --> O[Remove recipient/message entry from local cache]
+
+  P[Message withdrawn] --> Q[Refresh cached payload to withdrawn version]
+  R[User's last socket disconnects on node] --> S[Clear that user's local pending cache]
+```
+
 Important: DB write happens once on the node that handled `send_message`. Other nodes only forward packet to local sockets.
 
 ### Message fanout sequence (User A on Node1, User B on Node2)
@@ -454,6 +515,10 @@ Binary media does not pass through backend app memory. Backend performs auth + s
    - expiry seconds
 5. Client uploads file directly to S3 using `PUT uploadUrl`.
 6. Client sends chat message with `mediaObjectKey = objectKey`.
+7. Before the backend persists that media message, it verifies:
+   - the key still matches the expected prefix for this conversation and sender
+   - the uploaded S3 object exists (`HeadObject`)
+8. Only after that verification succeeds does the backend write the message row.
 
 ## 5.2 Download workflow
 
@@ -475,11 +540,68 @@ sequenceDiagram
   API-->>C: { uploadUrl, objectKey }
   C->>S3: PUT file with uploadUrl
   C->>API: emit send_message { mediaObjectKey }
+  API->>S3: HeadObject(objectKey)
+  S3-->>API: object exists
   API-->>C: emit message with mediaObjectKey
   C->>API: GET /chat/media/sign-download?key=...
   API-->>C: { downloadUrl }
   C->>S3: GET media with downloadUrl
 ```
+
+### 5.3 What is fixed now
+
+Current backend safeguards for media messages:
+
+1. Only authenticated conversation participants can request upload URLs.
+2. Backend controls the object key shape:
+   - `chat/conversations/<conversationId>/users/<userId>/<uuid>.<ext>`
+3. Backend enforces allowed MIME types and size before signing upload.
+4. Backend now verifies the `mediaObjectKey` belongs to the same conversation and sender before saving the message.
+5. Backend now verifies the object exists in S3 (`HeadObject`) before persisting the media message row.
+
+Effect:
+
+- a client can no longer skip the upload and still create a media message pointing at a missing object
+- a client can no longer reuse an arbitrary key from another conversation or another sender path
+
+### 5.4 Remaining media risks and possible solutions
+
+Remaining issue 1: upload succeeds, but DB write fails afterward
+
+- Result:
+  - the S3 object exists
+  - the chat message row is never created
+  - this leaves an orphaned object in S3
+- Why:
+  - S3 upload and DB transaction are not one atomic transaction
+- Possible solutions:
+  - best-effort `DeleteObject` cleanup if DB save fails after verification
+  - lifecycle cleanup for temporary / unreferenced uploads
+  - staged upload flow: upload into a temporary prefix, then promote/copy only after DB write succeeds
+
+Remaining issue 2: presigned upload URL is leaked
+
+- Result:
+  - whoever has the URL can upload to that exact signed key until expiry
+- Current blast-radius limits:
+  - URL is short-lived
+  - key is random
+  - key is bound to one conversation path and sender path
+  - backend re-checks the key prefix before saving the media message
+- Possible solutions:
+  - shorten presigned URL lifetime further
+  - bind more signed constraints such as content type and checksum
+  - store one-time upload intents in DB/Redis and mark them consumed on first successful message save
+  - use temporary upload prefixes plus cleanup / promotion
+
+Remaining issue 3: object exists, but wrong content was uploaded
+
+- Result:
+  - `HeadObject` proves existence, not correctness of contents
+- Possible solutions:
+  - verify content type and content length from `HeadObject`
+  - store expected checksum / size at presign time and compare during message send
+  - reject uploads whose metadata does not match the signed intent
 
 ---
 
@@ -798,6 +920,13 @@ When the user selects a different conversation in `ChatPage`:
 2. the latest message is used to call `markAsRead(selectedChat, latestMessageId)`
 3. `markAsRead` calls `loadConversations()` afterward to refresh unread counts
 
+Important clarification:
+
+- switching conversations does trigger a sync, but it is a **thread-scoped sync**, not a full app-wide resync
+- frontend reloads messages only for the newly selected conversation
+- frontend also requests a fresh `presence_subscribe` snapshot only for that selected conversation
+- it does **not** reload every conversation's messages the way reconnect recovery does
+
 ### 9.6 Message merge and deduplication
 
 All `loadMessages` calls go through `mergeMessages` in `ChatContext`:
@@ -903,6 +1032,7 @@ Quick mental model:
 | Offline message sync / reconnect recovery | **Partial** | Reconnect path loads conversations and fetches messages after the latest loaded sequence. Pending deliveries are replayed on connect and when the recipient activates a conversation. | Recovery is driven by activity/reconnect, not by a persistent per-device last-delivered checkpoint, so replay scope is broader than necessary. |
 | Horizontal scaling / "A on node1, B on node2" | **Handled** | Socket.IO Redis adapter fans out room-targeted events across nodes. Durable truth remains in DB, presence/typing snapshots use Redis TTL keys. | Cross-node message fanout is covered, but replay coalescing is not cluster-wide yet because the guard is still in local memory. |
 | Connection management / cleanup | **Partial** | Presence and typing use TTL-backed keys, disconnect cleanup removes local socket state, and client-side timers clear stale typing UI. | If Redis is unavailable, presence/typing snapshot recovery degrades; some edge behavior falls back to best effort until Redis returns. |
+| Media integrity / "can someone reference a missing or чужой uploaded file?" | **Partial** | Upload URLs are issued only to authenticated conversation participants, object keys are generated under conversation/sender-specific prefixes, and backend now verifies both key ownership and S3 object existence before persisting a media message. | `HeadObject` proves existence, not content correctness. Presigned URL leakage and orphaned uploads after DB failure still need separate mitigation. |
 
 ### 10.2 Smallest remaining hardening steps
 
@@ -910,6 +1040,8 @@ Quick mental model:
 2. Add a per-device or per-session "last delivered sequence number" checkpoint so reconnect recovery can request only the exact missing range instead of replaying all still-pending deliveries.
 3. Move unread/read tracking from `createdAt` comparisons to `sequenceNumber` comparisons so read state and ordering use the same monotonic source of truth.
 4. Add operational visibility for long-pending deliveries (metrics/logging or a small sweeper job) so "stuck pending forever" cases are observable.
+5. Add cleanup / promotion logic for chat media uploads so DB failures do not leave orphaned S3 objects.
+6. Strengthen presigned-upload hardening with single-use upload intents and metadata/checksum validation.
 
 ---
 
