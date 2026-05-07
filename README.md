@@ -1,5 +1,8 @@
 # ECE651-G11 - Secondhand Item Selling Web App
 
+Demo: https://www.youtube.com/watch?v=LuOTaUcDaAE
+Chat System: 5:50 - end
+
 ## Overview
 Secondhand Hub is a marketplace for buying and selling second-hand goods.
 Inspired by Amazon's UX patterns, it features:
